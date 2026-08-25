@@ -15,31 +15,101 @@ import AddAccountModal from './components/modals/AddAccountModal';
 import AddHelperModal from './components/modals/AddHelperModal';
 import AddProductModal from './components/modals/AddProductModal';
 import ConfirmSyncStockModal from './components/modals/ConfirmSyncStockModal';
+import LoginView from './views/LoginView';
+import MasterDataView from './views/MasterDataView';
 import { trackingService } from './services/trackingService';
-import { initialShopeeAccounts, initialHelpers, initialProducts, initialPackages } from './data/seedData';
+import { useAuth } from './contexts/AuthContext';
+import {
+    COLLECTIONS,
+    subscribeCollection,
+    addItem,
+    updateItem,
+    createPembelianLengkap,
+    tandaiCodDibayar,
+    tambahRiwayatTracking,
+} from './services/firestoreService';
 
 function App() {
-            // States
-            const [packages, setPackages] = useState(() => {
-                const saved = localStorage.getItem('yn_packages');
-                return saved ? JSON.parse(saved) : initialPackages;
-            });
-            const [shopeeAccounts, setShopeeAccounts] = useState(() => {
-                const saved = localStorage.getItem('yn_accounts');
-                return saved ? JSON.parse(saved) : initialShopeeAccounts;
-            });
-            const [helpers, setHelpers] = useState(() => {
-                const saved = localStorage.getItem('yn_helpers');
-                return saved ? JSON.parse(saved) : initialHelpers;
-            });
-            const [products, setProducts] = useState(() => {
-                const saved = localStorage.getItem('yn_products');
-                return saved ? JSON.parse(saved) : initialProducts;
-            });
+            const { user, authLoading, logout } = useAuth();
+
+            // States (disinkronkan realtime dari Cloud Firestore)
+            const [packages, setPackages] = useState([]);
+            const [shopeeAccounts, setShopeeAccounts] = useState([]);
+            const [helpers, setHelpers] = useState([]);
+            const [products, setProducts] = useState([]);
+            const [dataLoading, setDataLoading] = useState(true);
+            const [masterData, setMasterData] = useState({ jasaCo: [], alamat: [], kurir: [], kantorKurir: [] });
             const [trackingApiConfig, setTrackingApiConfig] = useState(() => {
                 const saved = localStorage.getItem('yn_tracking_config');
                 return saved ? JSON.parse(saved) : trackingService.config;
             });
+
+            // Berlangganan data Firestore secara realtime setelah user login.
+            // Koleksi: paket, akunCo, helperCheckout, produk
+            useEffect(() => {
+                if (!user) return undefined;
+
+                let loadedFlags = { paket: false, akunCo: false, helper: false, produk: false };
+                const checkAllLoaded = () => {
+                    if (Object.values(loadedFlags).every(Boolean)) setDataLoading(false);
+                };
+
+                const unsubPaket = subscribeCollection(COLLECTIONS.paket, (items) => {
+                    setPackages(items);
+                    loadedFlags.paket = true;
+                    checkAllLoaded();
+                }, () => { loadedFlags.paket = true; checkAllLoaded(); });
+
+                const unsubAkun = subscribeCollection(COLLECTIONS.akunCo, (items) => {
+                    setShopeeAccounts(items);
+                    loadedFlags.akunCo = true;
+                    checkAllLoaded();
+                }, () => { loadedFlags.akunCo = true; checkAllLoaded(); });
+
+                const unsubHelper = subscribeCollection(COLLECTIONS.helperCheckout, (items) => {
+                    setHelpers(items);
+                    loadedFlags.helper = true;
+                    checkAllLoaded();
+                }, () => { loadedFlags.helper = true; checkAllLoaded(); });
+
+                const unsubProduk = subscribeCollection(COLLECTIONS.produk, (items) => {
+                    setProducts(items);
+                    loadedFlags.produk = true;
+                    checkAllLoaded();
+                }, () => { loadedFlags.produk = true; checkAllLoaded(); });
+
+                return () => {
+                    unsubPaket();
+                    unsubAkun();
+                    unsubHelper();
+                    unsubProduk();
+                };
+            }, [user]);
+
+            // Berlangganan koleksi Master Data: Jasa CO, Alamat, Kurir, Kantor/Agen/Hub Kurir
+            useEffect(() => {
+                if (!user) return undefined;
+
+                const unsubJasaCo = subscribeCollection(COLLECTIONS.jasaCo, (items) =>
+                    setMasterData((m) => ({ ...m, jasaCo: items }))
+                );
+                const unsubAlamat = subscribeCollection(COLLECTIONS.alamat, (items) =>
+                    setMasterData((m) => ({ ...m, alamat: items }))
+                );
+                const unsubKurir = subscribeCollection(COLLECTIONS.kurir, (items) =>
+                    setMasterData((m) => ({ ...m, kurir: items }))
+                );
+                const unsubKantorKurir = subscribeCollection(COLLECTIONS.kantorKurir, (items) =>
+                    setMasterData((m) => ({ ...m, kantorKurir: items }))
+                );
+
+                return () => {
+                    unsubJasaCo();
+                    unsubAlamat();
+                    unsubKurir();
+                    unsubKantorKurir();
+                };
+            }, [user]);
 
             // UI Navigation State
             const [activeTab, setActiveTab] = useState('dashboard');
@@ -56,11 +126,7 @@ function App() {
             const [showSyncStockModal, setShowSyncStockModal] = useState(null); // package object
             const [toast, setToast] = useState(null);
 
-            // Save to LocalStorage
-            useEffect(() => { localStorage.setItem('yn_packages', JSON.stringify(packages)); }, [packages]);
-            useEffect(() => { localStorage.setItem('yn_accounts', JSON.stringify(shopeeAccounts)); }, [shopeeAccounts]);
-            useEffect(() => { localStorage.setItem('yn_helpers', JSON.stringify(helpers)); }, [helpers]);
-            useEffect(() => { localStorage.setItem('yn_products', JSON.stringify(products)); }, [products]);
+            // Konfigurasi tracking API tetap disimpan lokal (bukan bagian data bisnis utama)
             useEffect(() => { 
                 localStorage.setItem('yn_tracking_config', JSON.stringify(trackingApiConfig));
                 trackingService.config = trackingApiConfig;
@@ -98,15 +164,14 @@ function App() {
                 const failedOrProblem = packages.filter(p => ['Gagal antar', 'Retur', 'Bermasalah', 'Hilang'].includes(p.shipping.status)).length;
                 
                 // Financials
-                const totalModal = packages.reduce((acc, p) => acc + (p.financials.totalShopeePayment || 0), 0);
-                const totalVouchers = packages.reduce((acc, p) => acc + (p.financials.voucher || 0), 0);
-                const totalFees = packages.reduce((acc, p) => acc + (p.financials.serviceFee || 0) + (p.financials.otherFee || 0), 0);
+                const totalModalKeseluruhan = packages.reduce((acc, p) => acc + (p.financials.totalModal || 0), 0);
+                const totalFeeJasaCo = packages.reduce((acc, p) => acc + (p.financials.feeJasaCo || 0), 0);
                 
                 // COD Stats
-                const codPackages = packages.filter(p => p.financials.paymentMethod === 'COD');
-                const codUnpaid = codPackages.filter(p => p.financials.codStatus === 'Belum dibayar').reduce((acc, p) => acc + p.financials.totalShopeePayment, 0);
-                const codPaid = codPackages.filter(p => p.financials.codStatus === 'Sudah dibayar').reduce((acc, p) => acc + p.financials.totalShopeePayment, 0);
-                const codProblem = codPackages.filter(p => p.financials.codStatus === 'Bermasalah').reduce((acc, p) => acc + p.financials.totalShopeePayment, 0);
+                const codPackages = packages.filter(p => p.financials.metodePembayaran === 'COD');
+                const codUnpaid = codPackages.filter(p => p.financials.codStatus === 'Belum dibayar').reduce((acc, p) => acc + p.financials.totalModal, 0);
+                const codPaid = codPackages.filter(p => p.financials.codStatus === 'Sudah dibayar').reduce((acc, p) => acc + p.financials.totalModal, 0);
+                const codProblem = codPackages.filter(p => p.financials.codStatus === 'Bermasalah').reduce((acc, p) => acc + p.financials.totalModal, 0);
 
                 // Warnings
                 const missingResi = packages.filter(p => !p.shipping.resi && p.shipping.status !== 'Draft');
@@ -114,7 +179,7 @@ function App() {
 
                 return {
                     totalPackages, waitingShip, shipped, inTransit, withCourier, delivered, failedOrProblem,
-                    totalModal, totalVouchers, totalFees,
+                    totalModal: totalModalKeseluruhan, totalFeeJasaCo,
                     codUnpaid, codPaid, codProblem,
                     missingResiCount: missingResi.length,
                     pendingStockSyncCount: pendingStockSync.length
@@ -138,83 +203,99 @@ function App() {
                 });
             }, [packages, searchQuery, statusFilter, accountFilter]);
 
-            // --- ACTIONS ---
-            const handleMarkCodPaid = (pkgId) => {
+            // --- ACTIONS (menulis langsung ke Firestore; UI ter-update otomatis via listener realtime) ---
+            const handleMarkCodPaid = async (pkgId) => {
                 const now = new Date().toISOString().replace('T', ' ').substring(0, 16);
-                setPackages(prev => prev.map(p => {
-                    if (p.id === pkgId) {
-                        return {
-                            ...p,
-                            financials: {
-                                ...p.financials,
-                                codStatus: 'Sudah dibayar',
-                                codPaidDate: now
-                            }
-                        };
-                    }
-                    return p;
-                }));
-                showToast('Status COD diperbarui menjadi Suda Dibayar!');
+                try {
+                    await updateItem(COLLECTIONS.paket, pkgId, {
+                        'financials.codStatus': 'Sudah dibayar',
+                        'financials.codPaidDate': now
+                    });
+                    await tandaiCodDibayar(pkgId);
+                    showToast('Status COD diperbarui menjadi Sudah Dibayar!');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal memperbarui status COD.', 'error');
+                }
             };
 
-            const handleSyncToStock = (pkg) => {
-                // Add quantities to inventory products
-                setProducts(prevProducts => {
-                    const updated = [...prevProducts];
-                    pkg.items.forEach(item => {
-                        const prodIndex = updated.findIndex(p => p.id === item.productId || p.name === item.name);
-                        if (prodIndex >= 0) {
-                            updated[prodIndex] = {
-                                ...updated[prodIndex],
-                                stock: updated[prodIndex].stock + item.qty,
+            const handleSyncToStock = async (pkg) => {
+                try {
+                    // Tambah/perbarui kuantitas ke koleksi Produk
+                    for (const item of pkg.items) {
+                        const existing = products.find(p => p.id === item.productId || p.name === item.name);
+                        if (existing) {
+                            await updateItem(COLLECTIONS.produk, existing.id, {
+                                stock: (existing.stock || 0) + item.qty,
                                 lastPrice: item.unitPrice
-                            };
+                            });
                         } else {
-                            // Create new product if not existing
-                            updated.push({
-                                id: 'prd-' + Date.now() + Math.random().toString(36).substr(2, 4),
+                            await addItem(COLLECTIONS.produk, {
                                 name: item.name,
                                 sku: item.sku || 'SKU-AUTO',
                                 category: 'Umum',
                                 variant: item.variant || '-',
                                 stock: item.qty,
                                 lastPrice: item.unitPrice,
-                                estHpp: Math.round(pkg.financials.totalShopeePayment / pkg.items.reduce((a,b)=>a+b.qty,0)),
+                                estHpp: Math.round(pkg.financials.totalModal / pkg.items.reduce((a, b) => a + b.qty, 0)),
                                 minStock: 5
                             });
                         }
-                    });
-                    return updated;
-                });
+                    }
 
-                // Mark package stockSynced = true
-                setPackages(prev => prev.map(p => p.id === pkg.id ? { ...p, stockSynced: true } : p));
-                setShowSyncStockModal(null);
-                showToast(`Stok dari paket ${pkg.id} berhasil ditambahkan ke Inventaris!`);
+                    // Tandai paket sudah disinkron ke stok
+                    await updateItem(COLLECTIONS.paket, pkg.id, { stockSynced: true });
+                    setShowSyncStockModal(null);
+                    showToast(`Stok dari paket ${pkg.id} berhasil ditambahkan ke Inventaris!`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menyinkronkan stok.', 'error');
+                }
             };
 
             const handleUpdateTracking = async (pkg) => {
                 showToast(`Memperbarui tracking resi ${pkg.shipping.resi}...`, 'info');
-                const result = await trackingService.track(pkg.shipping.courier, pkg.shipping.resi);
-                if (result.success) {
-                    setPackages(prev => prev.map(p => {
-                        if (p.id === pkg.id) {
-                            return {
-                                ...p,
-                                shipping: {
-                                    ...p.shipping,
-                                    status: result.currentStatus,
-                                    lastLocation: result.lastLocation || p.shipping.lastLocation,
-                                    lastUpdate: result.lastUpdate || new Date().toISOString().replace('T', ' ').substring(0, 16)
-                                },
-                                trackingHistory: result.history || p.trackingHistory
-                            };
-                        }
-                        return p;
-                    }));
-                    showToast(`Status paket ${pkg.id} berhasil diperbarui: ${result.currentStatus}`);
+                try {
+                    const result = await trackingService.track(pkg.shipping.courier, pkg.shipping.resi);
+                    if (result.success) {
+                        const lastUpdate = result.lastUpdate || new Date().toISOString().replace('T', ' ').substring(0, 16);
+                        await updateItem(COLLECTIONS.paket, pkg.id, {
+                            'shipping.status': result.currentStatus,
+                            'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation,
+                            'shipping.lastUpdate': lastUpdate,
+                            trackingHistory: result.history || pkg.trackingHistory || []
+                        });
+                        // Catat riwayat tracking terbaru ke koleksi Tracking
+                        await tambahRiwayatTracking(pkg.id, {
+                            status: result.currentStatus,
+                            location: result.lastLocation || pkg.shipping.lastLocation || '',
+                            time: lastUpdate
+                        });
+                        showToast(`Status paket ${pkg.id} berhasil diperbarui: ${result.currentStatus}`);
+                    }
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal memperbarui tracking.', 'error');
                 }
             };
+
+            // --- AUTH GATE ---
+            // Selama status login masih diperiksa, tampilkan layar loading.
+            if (authLoading) {
+                return (
+                    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+                        <div className="flex flex-col items-center space-y-3">
+                            <div className="w-10 h-10 rounded-full border-4 border-rose-200 border-t-rose-500 animate-spin"></div>
+                            <p className="text-sm text-slate-500">Memuat...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            // Belum login -> tampilkan halaman Login (khusus pengguna terdaftar, tanpa daftar akun)
+            if (!user) {
+                return <LoginView />;
+            }
 
             return (
                 <div className="flex flex-col md:flex-row min-h-screen">
@@ -248,20 +329,21 @@ function App() {
                             <nav className="space-y-1">
                                 <NavItem icon="📊" label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                                 <NavItem icon="📦" label="Semua Paket" badge={packages.length} active={activeTab === 'packages'} onClick={() => setActiveTab('packages')} />
-                                <NavItem icon="💵" label="COD Shopee" badge={packages.filter(p=>p.financials.paymentMethod==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
+                                <NavItem icon="💵" label="COD Shopee" badge={packages.filter(p=>p.financials.metodePembayaran==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
                                 <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
                                 <div className="pt-4 pb-1">
                                     <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Master Data</p>
                                 </div>
                                 <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} />
                                 <NavItem icon="👤" label="Helper Checkout" active={activeTab === 'helpers'} onClick={() => setActiveTab('helpers')} />
+                                <NavItem icon="🗂️" label="Master Data" active={activeTab === 'masterdata'} onClick={() => setActiveTab('masterdata')} />
                                 <NavItem icon="📈" label="Laporan" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                                 <NavItem icon="⚙️" label="Pengaturan" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
                             </nav>
                         </div>
 
                         {/* Quick Action Button */}
-                        <div className="pt-4 border-t border-slate-100">
+                        <div className="pt-4 border-t border-slate-100 space-y-3">
                             <button 
                                 onClick={() => setShowNewPurchaseModal(true)}
                                 className="w-full bg-rose-500 hover:bg-rose-600 text-white font-medium py-2.5 px-4 rounded-xl shadow-sm transition-all flex items-center justify-center space-x-2 text-sm"
@@ -269,6 +351,20 @@ function App() {
                                 <span>➕</span>
                                 <span>Tambah Pembelian</span>
                             </button>
+
+                            {/* Info Akun & Logout */}
+                            <div className="flex items-center justify-between px-1">
+                                <div className="min-w-0">
+                                    <p className="text-xs font-medium text-slate-700 truncate" title={user.email}>{user.email}</p>
+                                    <p className="text-[10px] text-slate-400">Masuk sebagai pengguna</p>
+                                </div>
+                                <button
+                                    onClick={() => logout()}
+                                    className="text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1 rounded-lg hover:bg-rose-50 transition-colors"
+                                >
+                                    Keluar
+                                </button>
+                            </div>
                         </div>
                     </aside>
 
@@ -306,6 +402,14 @@ function App() {
                                     <span>Tambah Paket</span>
                                 </button>
                             </div>
+
+                            {/* Mobile Logout */}
+                            <button
+                                onClick={() => logout()}
+                                className="md:hidden text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1"
+                            >
+                                Keluar
+                            </button>
                         </header>
 
                         {/* Page Content Renderer */}
@@ -375,7 +479,7 @@ function App() {
 
                             {activeTab === 'cod' && (
                                 <CodDashboardView 
-                                    packages={packages.filter(p => p.financials.paymentMethod === 'COD')}
+                                    packages={packages.filter(p => p.financials.metodePembayaran === 'COD')}
                                     stats={stats}
                                     onMarkCodPaid={handleMarkCodPaid}
                                     onViewDetail={(pkg) => setShowDetailModal(pkg)}
@@ -404,6 +508,13 @@ function App() {
                                     helpers={helpers}
                                     packages={packages}
                                     onAddHelper={() => setShowHelperModal(true)}
+                                />
+                            )}
+
+                            {activeTab === 'masterdata' && (
+                                <MasterDataView
+                                    data={masterData}
+                                    showToast={showToast}
                                 />
                             )}
 
@@ -442,11 +553,17 @@ function App() {
                             shopeeAccounts={shopeeAccounts}
                             helpers={helpers}
                             products={products}
+                            jasaCoList={masterData.jasaCo}
                             onClose={() => setShowNewPurchaseModal(false)}
-                            onSave={(newPkg) => {
-                                setPackages([newPkg, ...packages]);
-                                setShowNewPurchaseModal(false);
-                                showToast(`Pembelian ${newPkg.id} berhasil ditambahkan!`);
+                            onSave={async (newPkg) => {
+                                try {
+                                    await createPembelianLengkap(newPkg);
+                                    setShowNewPurchaseModal(false);
+                                    showToast(`Pembelian ${newPkg.id} berhasil ditambahkan!`);
+                                } catch (err) {
+                                    console.error(err);
+                                    showToast('Gagal menyimpan pembelian ke database.', 'error');
+                                }
                             }}
                         />
                     )}
@@ -474,11 +591,17 @@ function App() {
                     {/* Add Shopee Account Modal */}
                     {showAccountModal && (
                         <AddAccountModal 
+                            jasaCoList={masterData.jasaCo}
                             onClose={() => setShowAccountModal(false)}
-                            onSave={(acc) => {
-                                setShopeeAccounts([...shopeeAccounts, acc]);
-                                setShowAccountModal(false);
-                                showToast('Akun Shopee baru berhasil disimpan!');
+                            onSave={async (acc) => {
+                                try {
+                                    await addItem(COLLECTIONS.akunCo, acc);
+                                    setShowAccountModal(false);
+                                    showToast('Akun CO baru berhasil disimpan!');
+                                } catch (err) {
+                                    console.error(err);
+                                    showToast('Gagal menyimpan Akun CO.', 'error');
+                                }
                             }}
                         />
                     )}
@@ -487,10 +610,15 @@ function App() {
                     {showHelperModal && (
                         <AddHelperModal 
                             onClose={() => setShowHelperModal(false)}
-                            onSave={(hlp) => {
-                                setHelpers([...helpers, hlp]);
-                                setShowHelperModal(false);
-                                showToast('Helper Checkout baru berhasil disimpan!');
+                            onSave={async (hlp) => {
+                                try {
+                                    await addItem(COLLECTIONS.helperCheckout, hlp);
+                                    setShowHelperModal(false);
+                                    showToast('Helper Checkout baru berhasil disimpan!');
+                                } catch (err) {
+                                    console.error(err);
+                                    showToast('Gagal menyimpan Helper Checkout.', 'error');
+                                }
                             }}
                         />
                     )}
@@ -499,10 +627,15 @@ function App() {
                     {showProductModal && (
                         <AddProductModal 
                             onClose={() => setShowProductModal(false)}
-                            onSave={(prod) => {
-                                setProducts([...products, prod]);
-                                setShowProductModal(false);
-                                showToast('Produk stok baru berhasil disimpan!');
+                            onSave={async (prod) => {
+                                try {
+                                    await addItem(COLLECTIONS.produk, prod);
+                                    setShowProductModal(false);
+                                    showToast('Produk baru berhasil disimpan!');
+                                } catch (err) {
+                                    console.error(err);
+                                    showToast('Gagal menyimpan Produk.', 'error');
+                                }
                             }}
                         />
                     )}

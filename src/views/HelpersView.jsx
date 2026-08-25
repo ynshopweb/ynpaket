@@ -16,7 +16,7 @@ function HelpersView({ helpers, packages, onAddHelper }) {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                         {helpers.map(hlp => {
                             const hlpPackages = packages.filter(p => p.helperId === hlp.id);
-                            const totalSpent = hlpPackages.reduce((sum, p) => sum + p.financials.totalShopeePayment, 0);
+                            const totalSpent = hlpPackages.reduce((sum, p) => sum + p.financials.totalModal, 0);
 
                             return (
                                 <div key={hlp.id} className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-2">

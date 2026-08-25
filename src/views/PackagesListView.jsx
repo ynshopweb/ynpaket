@@ -107,9 +107,9 @@ function PackagesListView({
                                                         </div>
                                                     </td>
                                                     <td className="p-3.5">
-                                                        <div className="font-bold text-slate-900">Rp{pkg.financials.totalShopeePayment.toLocaleString('id-ID')}</div>
+                                                        <div className="font-bold text-slate-900">Rp{pkg.financials.totalModal.toLocaleString('id-ID')}</div>
                                                         <div className="text-xs mt-0.5">
-                                                            {pkg.financials.paymentMethod === 'COD' ? (
+                                                            {pkg.financials.metodePembayaran === 'COD' ? (
                                                                 <button 
                                                                     onClick={() => pkg.financials.codStatus !== 'Sudah dibayar' && onMarkCodPaid(pkg.id)}
                                                                     className={`px-2 py-0.5 rounded-md font-semibold text-[11px] ${
@@ -121,7 +121,7 @@ function PackagesListView({
                                                                     COD: {pkg.financials.codStatus}
                                                                 </button>
                                                             ) : (
-                                                                <span className="text-slate-400">{pkg.financials.paymentMethod}</span>
+                                                                <span className="text-slate-400">{pkg.financials.metodePembayaran}</span>
                                                             )}
                                                         </div>
                                                     </td>

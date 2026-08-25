@@ -1,20 +1,25 @@
 import React, { useState } from 'react';
 
-function AddAccountModal({ onClose, onSave }) {
+function AddAccountModal({ onClose, onSave, jasaCoList = [] }) {
             const [label, setLabel] = useState('');
             const [username, setUsername] = useState('');
             const [phone, setPhone] = useState('');
             const [note, setNote] = useState('');
+            const [jasaCoId, setJasaCoId] = useState('');
 
             const handleSubmit = (e) => {
                 e.preventDefault();
+                const selectedJasaCo = jasaCoList.find(j => j.id === jasaCoId);
                 onSave({
                     id: 'acc-' + Date.now(),
                     label,
                     username,
                     phone,
                     status: 'Aktif',
-                    note
+                    note,
+                    jasaCoId: jasaCoId || null,
+                    jasaCoNama: selectedJasaCo ? selectedJasaCo.nama : '',
+                    feeJasaCoDefault: selectedJasaCo ? Number(selectedJasaCo.biaya) || 0 : 0
                 });
             };
 
@@ -34,6 +39,16 @@ function AddAccountModal({ onClose, onSave }) {
                             <div>
                                 <label className="block font-medium mb-1">Nomor HP Akun (Opsional)</label>
                                 <input type="text" value={phone} onChange={e=>setPhone(e.target.value)} className="w-full border rounded p-2" />
+                            </div>
+                            <div>
+                                <label className="block font-medium mb-1">Jasa CO (Opsional)</label>
+                                <select value={jasaCoId} onChange={e=>setJasaCoId(e.target.value)} className="w-full border rounded p-2">
+                                    <option value="">— Tidak terkait Jasa CO —</option>
+                                    {jasaCoList.map(j => (
+                                        <option key={j.id} value={j.id}>{j.nama}{j.biaya ? ` (Fee default Rp${Number(j.biaya).toLocaleString('id-ID')})` : ''}</option>
+                                    ))}
+                                </select>
+                                <p className="text-[10px] text-slate-400 mt-1">Jika akun ini dipakai oleh Jasa CO tertentu, fee default-nya akan otomatis terisi saat membuat pembelian baru (tetap bisa diubah per transaksi).</p>
                             </div>
                             <div>
                                 <label className="block font-medium mb-1">Catatan</label>

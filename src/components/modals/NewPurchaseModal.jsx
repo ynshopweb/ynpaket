@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 
-function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }) {
+function NewPurchaseModal({ shopeeAccounts, helpers, products, jasaCoList = [], onClose, onSave }) {
             const [checkoutDate, setCheckoutDate] = useState(new Date().toISOString().substring(0, 10));
             const [shopeeAccountId, setShopeeAccountId] = useState(shopeeAccounts[0]?.id || '');
             const [helperId, setHelperId] = useState(helpers[0]?.id || '');
@@ -20,12 +20,27 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                 { productId: '', name: '', sku: '', variant: '', qty: 1, unitPrice: 0, subtotal: 0 }
             ]);
 
+            // Akun CO yang sedang dipilih & Jasa CO terkait (untuk auto-isi fee)
+            const selectedAccount = shopeeAccounts.find(a => a.id === shopeeAccountId);
+            const linkedJasaCoNama = selectedAccount?.jasaCoNama || '';
+
             // Financials
-            const [voucher, setVoucher] = useState(0);
-            const [serviceFee, setServiceFee] = useState(0);
-            const [otherFee, setOtherFee] = useState(0);
-            const [paymentMethod, setPaymentMethod] = useState('COD');
+            const [voucherShopee, setVoucherShopee] = useState(''); // teks informasi saja, tidak dihitung
+            const [totalHargaPesanan, setTotalHargaPesanan] = useState(0); // nominal manual sesuai tampilan Shopee
+            const [metodePembayaranPreset, setMetodePembayaranPreset] = useState('COD');
+            const [metodePembayaranLainnya, setMetodePembayaranLainnya] = useState('');
             const [codStatus, setCodStatus] = useState('Belum dibayar');
+            const [feeJasaCo, setFeeJasaCo] = useState(0);
+            const [feeJasaCoTouched, setFeeJasaCoTouched] = useState(false);
+
+            // Saat Akun CO berganti, auto-isi Fee Jasa CO dari fee default akun tsb,
+            // kecuali sudah diedit manual oleh user untuk transaksi ini.
+            React.useEffect(() => {
+                if (!feeJasaCoTouched) {
+                    setFeeJasaCo(selectedAccount?.feeJasaCoDefault || 0);
+                }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [shopeeAccountId]);
 
             // Shipping
             const [courier, setCourier] = useState('SPX Express');
@@ -62,7 +77,12 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
 
             // Calculate Totals
             const itemsTotal = items.reduce((sum, item) => sum + (Number(item.subtotal) || 0), 0);
-            const totalShopeePayment = Math.max(0, itemsTotal - Number(voucher) + Number(serviceFee) + Number(otherFee));
+            const isCod = metodePembayaranPreset === 'COD';
+            const metodePembayaranFinal = metodePembayaranPreset === 'Lainnya'
+                ? (metodePembayaranLainnya || 'Lainnya')
+                : metodePembayaranPreset;
+            // Total Modal = Total Harga Pesanan + Fee Jasa CO (Voucher TIDAK dihitung)
+            const totalModal = Math.max(0, Number(totalHargaPesanan || 0) + Number(feeJasaCo || 0));
 
             const handleSubmit = (e) => {
                 e.preventDefault();
@@ -84,12 +104,13 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                     items,
                     financials: {
                         itemsTotal,
-                        voucher: Number(voucher),
-                        serviceFee: Number(serviceFee),
-                        otherFee: Number(otherFee),
-                        totalShopeePayment,
-                        paymentMethod,
-                        codStatus: paymentMethod === 'COD' ? codStatus : 'Sudah dibayar'
+                        voucherShopee, // string informasi, tidak mempengaruhi perhitungan
+                        totalHargaPesanan: Number(totalHargaPesanan || 0),
+                        metodePembayaran: metodePembayaranFinal,
+                        jasaCoNama: linkedJasaCoNama,
+                        feeJasaCo: Number(feeJasaCo || 0),
+                        totalModal,
+                        codStatus: isCod ? codStatus : 'Sudah dibayar'
                     },
                     shipping: {
                         courier,
@@ -128,6 +149,9 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                                         <select value={shopeeAccountId} onChange={e=>setShopeeAccountId(e.target.value)} className="w-full border rounded-lg p-2">
                                             {shopeeAccounts.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
                                         </select>
+                                        {linkedJasaCoNama && (
+                                            <p className="text-[10px] text-rose-500 mt-1">Jasa CO: {linkedJasaCoNama}</p>
+                                        )}
                                     </div>
                                     <div>
                                         <label className="block font-medium text-slate-700 mb-1">Dibantu Oleh (Helper)</label>
@@ -179,20 +203,31 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                             {/* Section 3: Keuangan Shopee & Pembayaran */}
                             <div className="space-y-3">
                                 <h4 className="font-bold text-slate-800 text-sm uppercase tracking-wider border-b pb-1">3. Biaya Shopee & Metode Pembayaran</h4>
-                                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3 bg-rose-50/50 p-3 rounded-xl border border-rose-100">
                                     <div>
-                                        <label className="block font-medium text-slate-700 mb-1">Voucher Shopee (Rp)</label>
-                                        <input type="number" value={voucher} onChange={e=>setVoucher(e.target.value)} className="w-full border rounded p-1.5" />
+                                        <label className="block font-medium text-slate-700 mb-1">Voucher Shopee</label>
+                                        <input
+                                            type="text"
+                                            placeholder='Contoh: "25% MAX Rp100.000"'
+                                            value={voucherShopee}
+                                            onChange={e=>setVoucherShopee(e.target.value)}
+                                            className="w-full border rounded p-1.5"
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Hanya catatan/informasi. Tidak memengaruhi perhitungan Total Modal.</p>
                                     </div>
                                     <div>
-                                        <label className="block font-medium text-slate-700 mb-1">Biaya Layanan (Rp)</label>
-                                        <input type="number" value={serviceFee} onChange={e=>setServiceFee(e.target.value)} className="w-full border rounded p-1.5" />
+                                        <label className="block font-medium text-slate-700 mb-1">Total Harga Pesanan (Rp)</label>
+                                        <input
+                                            type="number"
+                                            placeholder="Sesuai tampilan di Shopee"
+                                            value={totalHargaPesanan}
+                                            onChange={e=>setTotalHargaPesanan(e.target.value)}
+                                            className="w-full border rounded p-1.5"
+                                            required
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Masukkan nominal akhir pesanan sesuai Shopee (setelah voucher, dsb).</p>
                                     </div>
-                                    <div>
-                                        <label className="block font-medium text-slate-700 mb-1">Biaya Lainnya (Rp)</label>
-                                        <input type="number" value={otherFee} onChange={e=>setOtherFee(e.target.value)} className="w-full border rounded p-1.5" />
-                                    </div>
-                                    <div className="flex items-center space-x-1.5 text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5 col-span-2 md:col-span-3">
+                                    <div className="flex items-center space-x-1.5 text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-2.5 py-1.5 md:col-span-2">
                                         <span>🚚</span>
                                         <span className="text-[11px] font-medium">Gratis Ongkir dari Shopee — tidak ada biaya ongkos kirim yang perlu dicatat.</span>
                                     </div>
@@ -200,14 +235,28 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                                     <div>
                                         <label className="block font-medium text-slate-700 mb-1">Metode Pembayaran</label>
-                                        <select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value)} className="w-full border rounded p-2">
+                                        <select value={metodePembayaranPreset} onChange={e=>setMetodePembayaranPreset(e.target.value)} className="w-full border rounded p-2">
                                             <option value="COD">COD (Bayar di Tempat)</option>
                                             <option value="ShopeePay">ShopeePay</option>
-                                            <option value="Transfer Bank">Transfer Bank</option>
-                                            <option value="SeBank">SeaBank</option>
+                                            <option value="Transfer">Transfer</option>
+                                            <option value="SPayLater">SPayLater</option>
+                                            <option value="Lainnya">Lainnya</option>
                                         </select>
                                     </div>
-                                    {paymentMethod === 'COD' && (
+                                    {metodePembayaranPreset === 'Lainnya' && (
+                                        <div>
+                                            <label className="block font-medium text-slate-700 mb-1">Metode Pembayaran (Tulis Sendiri)</label>
+                                            <input
+                                                type="text"
+                                                placeholder="Tulis metode pembayaran..."
+                                                value={metodePembayaranLainnya}
+                                                onChange={e=>setMetodePembayaranLainnya(e.target.value)}
+                                                className="w-full border rounded p-2"
+                                                required
+                                            />
+                                        </div>
+                                    )}
+                                    {isCod && (
                                         <div>
                                             <label className="block font-medium text-slate-700 mb-1">Status COD</label>
                                             <select value={codStatus} onChange={e=>setCodStatus(e.target.value)} className="w-full border rounded p-2">
@@ -216,9 +265,27 @@ function NewPurchaseModal({ shopeeAccounts, helpers, products, onClose, onSave }
                                             </select>
                                         </div>
                                     )}
-                                    <div className="bg-slate-900 text-white p-2.5 rounded-xl flex flex-col justify-center">
-                                        <span className="text-[10px] text-slate-400">Total Pembayaran Shopee:</span>
-                                        <span className="text-base font-bold text-rose-400">Rp{totalShopeePayment.toLocaleString('id-ID')}</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                    <div>
+                                        <label className="block font-medium text-slate-700 mb-1">
+                                            Fee Jasa CO (Rp) {linkedJasaCoNama && <span className="text-rose-500 font-normal">— {linkedJasaCoNama}</span>}
+                                        </label>
+                                        <input
+                                            type="number"
+                                            value={feeJasaCo}
+                                            onChange={e => { setFeeJasaCo(e.target.value); setFeeJasaCoTouched(true); }}
+                                            className="w-full border rounded p-1.5"
+                                        />
+                                        {selectedAccount?.feeJasaCoDefault > 0 && (
+                                            <p className="text-[10px] text-slate-400 mt-1">
+                                                Fee default: Rp{Number(selectedAccount.feeJasaCoDefault).toLocaleString('id-ID')} — bisa diubah khusus untuk transaksi ini saja.
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="md:col-span-2 bg-slate-900 text-white p-2.5 rounded-xl flex flex-col justify-center">
+                                        <span className="text-[10px] text-slate-400">Total Modal (Total Harga Pesanan + Fee Jasa CO):</span>
+                                        <span className="text-base font-bold text-rose-400">Rp{totalModal.toLocaleString('id-ID')}</span>
                                     </div>
                                 </div>
                             </div>

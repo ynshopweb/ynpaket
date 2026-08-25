@@ -17,7 +17,7 @@ function ShopeeAccountsView({ accounts, packages, onAddAccount }) {
                         {accounts.map(acc => {
                             const accPackages = packages.filter(p => p.shopeeAccountId === acc.id);
                             const activePkgs = accPackages.filter(p => p.shipping.status !== 'Berhasil diterima').length;
-                            const totalSpent = accPackages.reduce((sum, p) => sum + p.financials.totalShopeePayment, 0);
+                            const totalSpent = accPackages.reduce((sum, p) => sum + p.financials.totalModal, 0);
 
                             return (
                                 <div key={acc.id} className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">

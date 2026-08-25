@@ -1,0 +1,15 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Semua koleksi data aplikasi (paket, akunCo, produk, dll) hanya bisa
+    // dibaca & ditulis oleh pengguna yang sudah login (auth != null).
+    // Tidak ada pendaftaran akun sendiri — akun dibuat manual oleh admin
+    // lewat Firebase Console / Authentication tab, jadi siapa pun yang
+    // berhasil login dianggap pengguna sah aplikasi ini.
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

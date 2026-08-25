@@ -33,7 +33,7 @@ function PackageDetailModal({ pkg, shopeeAccounts, helpers, onClose, onMarkCodPa
                                 </div>
                                 <div>
                                     <span className="text-slate-400">Metode Bayar:</span>
-                                    <div className="font-bold text-rose-600">{pkg.financials.paymentMethod} ({pkg.financials.codStatus})</div>
+                                    <div className="font-bold text-rose-600">{pkg.financials.metodePembayaran} ({pkg.financials.codStatus})</div>
                                 </div>
                             </div>
 
@@ -105,20 +105,26 @@ function PackageDetailModal({ pkg, shopeeAccounts, helpers, onClose, onMarkCodPa
 
                             {/* Financial Breakdown */}
                             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-1">
-                                <h4 className="font-bold text-slate-800 text-xs uppercase mb-2">Rincian Keuangan & HPP</h4>
-                                <div className="flex justify-between"><span>Subtotal Barang:</span><span>Rp{pkg.financials.itemsTotal.toLocaleString('id-ID')}</span></div>
-                                <div className="flex justify-between text-purple-600"><span>Voucher Diskon:</span><span>-Rp{pkg.financials.voucher.toLocaleString('id-ID')}</span></div>
+                                <h4 className="font-bold text-slate-800 text-xs uppercase mb-2">Rincian Keuangan</h4>
+                                {pkg.financials.voucherShopee && (
+                                    <div className="flex justify-between text-purple-600"><span>Voucher Shopee:</span><span className="text-right">{pkg.financials.voucherShopee}</span></div>
+                                )}
+                                <div className="flex justify-between"><span>Total Harga Pesanan:</span><span>Rp{(pkg.financials.totalHargaPesanan ?? 0).toLocaleString('id-ID')}</span></div>
                                 <div className="flex justify-between text-blue-600"><span>Ongkos Kirim:</span><span className="font-semibold">Gratis 🚚</span></div>
-                                <div className="flex justify-between text-slate-500"><span>Biaya Layanan:</span><span>+Rp{pkg.financials.serviceFee.toLocaleString('id-ID')}</span></div>
+                                <div className="flex justify-between"><span>Metode Pembayaran:</span><span className="font-semibold">{pkg.financials.metodePembayaran}</span></div>
+                                <div className="flex justify-between text-slate-500">
+                                    <span>Fee Jasa CO{pkg.financials.jasaCoNama ? ` (${pkg.financials.jasaCoNama})` : ''}:</span>
+                                    <span>+Rp{(pkg.financials.feeJasaCo ?? 0).toLocaleString('id-ID')}</span>
+                                </div>
                                 <div className="flex justify-between font-bold text-slate-900 border-t pt-1 text-sm">
-                                    <span>Total Modal Shopee:</span>
-                                    <span className="text-rose-600">Rp{pkg.financials.totalShopeePayment.toLocaleString('id-ID')}</span>
+                                    <span>Total Modal:</span>
+                                    <span className="text-rose-600">Rp{pkg.financials.totalModal.toLocaleString('id-ID')}</span>
                                 </div>
                             </div>
                         </div>
 
                         <div className="p-4 bg-slate-50 border-t flex justify-between items-center">
-                            {pkg.financials.paymentMethod === 'COD' && pkg.financials.codStatus !== 'Sudah dibayar' ? (
+                            {pkg.financials.metodePembayaran === 'COD' && pkg.financials.codStatus !== 'Sudah dibayar' ? (
                                 <button onClick={onMarkCodPaid} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl">
                                     ✓ Tandai COD Sudah Dibayar
                                 </button>

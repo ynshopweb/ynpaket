@@ -8,24 +8,75 @@ Aplikasi ini sudah dipecah dari 1 file HTML besar menjadi struktur project React
 project/
 ├── index.html                     # HTML root
 ├── src/
-│   ├── main.jsx                   # Entry point React
+│   ├── main.jsx                   # Entry point React (dibungkus AuthProvider)
 │   ├── index.css                  # Import Tailwind + style custom scrollbar
-│   ├── App.jsx                    # Komponen utama (state, layout, routing tab)
+│   ├── App.jsx                    # Komponen utama (auth gate, state Firestore, layout, routing tab)
+│   ├── firebase.js                # Inisialisasi Firebase (Auth, Firestore, Analytics)
+│   ├── contexts/
+│   │   └── AuthContext.jsx        # Login, logout, reset password (context React)
 │   ├── data/
-│   │   └── seedData.js            # Data awal (akun Shopee, helper, produk, paket)
+│   │   └── seedData.js            # (tidak lagi dipakai untuk data awal — sudah diganti Firestore)
 │   ├── services/
-│   │   └── trackingService.js     # Layer service untuk tracking resi (Biteship/RajaOngkir/dll)
+│   │   ├── trackingService.js     # Layer service untuk tracking resi (Biteship/RajaOngkir/dll)
+│   │   └── firestoreService.js    # Layer akses Cloud Firestore (CRUD + realtime, semua koleksi)
 │   ├── components/
 │   │   ├── layout/                # NavItem, MobileNavItem
 │   │   ├── common/                # StatCard, FinanceCard, StatusBadge
 │   │   └── modals/                # Semua modal (Tambah Pembelian, Detail Paket, dll)
-│   └── views/                     # Dashboard, Daftar Paket, COD, Stok, Akun, Helper, Laporan, Pengaturan
+│   └── views/                     # Login, Dashboard, Daftar Paket, COD, Stok, Akun, Helper, Master Data, Laporan, Pengaturan
+├── firestore.rules                # Security rules Firestore (hanya user login yang boleh akses)
 ├── package.json
 ├── vite.config.js
 ├── tailwind.config.js
 ├── postcss.config.js
 └── vercel.json
 ```
+
+## 🔥 Setup Firebase (Login & Database)
+
+Aplikasi ini sudah terhubung ke project Firebase **`ynpaket`** (konfigurasi ada di `src/firebase.js`). Yang perlu dilakukan agar login & database berfungsi:
+
+### 1. Aktifkan Authentication (Email/Password)
+1. Buka [Firebase Console](https://console.firebase.google.com/) → pilih project **ynpaket**.
+2. Menu **Build → Authentication → Sign-in method** → aktifkan provider **Email/Password**.
+3. Karena aplikasi ini **tidak punya halaman daftar akun** (sengaja, khusus pengguna internal), buat akun pengguna secara manual:
+   - Tab **Authentication → Users → Add user** → isi email & password.
+   - Bagikan email + password tersebut ke pengguna yang berhak login.
+4. Fitur **"Lupa Password?"** di halaman login akan otomatis mengirim email reset password bawaan Firebase — tidak perlu setup tambahan, tapi pastikan template email di **Authentication → Templates → Password reset** sudah aktif (default sudah aktif).
+
+### 2. Aktifkan Cloud Firestore
+1. Menu **Build → Firestore Database → Create database** (mode production).
+2. Deploy security rules dari file `firestore.rules` di project ini (isinya: hanya user yang sudah login yang boleh baca/tulis data), lewat **Firebase CLI**:
+   ```bash
+   npm install -g firebase-tools
+   firebase login
+   firebase init firestore   # pilih project ynpaket, pakai firestore.rules yang sudah ada
+   firebase deploy --only firestore:rules
+   ```
+   Atau copy-paste isi `firestore.rules` langsung ke tab **Firestore Database → Rules** di Console lalu klik **Publish**.
+
+### 3. Struktur Data di Firestore
+Semua data aplikasi tersimpan sebagai koleksi top-level berikut (dibuat otomatis saat pertama kali ada data yang disimpan dari aplikasi — tidak perlu dibuat manual):
+
+| Koleksi Firestore | Menu di Aplikasi | Keterangan |
+|---|---|---|
+| `jasaCo` | Master Data → Jasa CO | Jenis layanan jastip/checkout |
+| `akunCo` | Akun Shopee | Akun marketplace yang dipakai checkout |
+| `alamat` | Master Data → Alamat | Alamat pengirim/penerima |
+| `kurir` | Master Data → Kurir | Daftar kurir (JNE, J&T, SPX, dst) |
+| `kantorKurir` | Master Data → Kantor/Agen/Hub Kurir | Titik kantor/agen/hub kurir |
+| `pembelian` | (dibuat otomatis saat Tambah Pembelian) | Catatan transaksi checkout awal |
+| `paket` | Semua Paket / COD / Dashboard | Status pengiriman & ringkasan paket (sumber utama tampilan) |
+| `isiPaket` | (rincian, dibuat otomatis) | Rincian barang per paket |
+| `tracking` | (riwayat, dibuat otomatis) | Riwayat pelacakan resi tiap kali di-update |
+| `cod` | COD Shopee | Status pembayaran Cash on Delivery per paket |
+| `produk` | Stok / Produk | Data inventaris |
+| `helperCheckout` | Helper Checkout | Mitra/orang yang bantu checkout |
+
+Karena setiap koleksi disinkronkan **realtime** (`onSnapshot`), perubahan data langsung terlihat di semua perangkat yang sedang login tanpa perlu refresh.
+
+### 4. Login
+Buka aplikasi → akan langsung diarahkan ke halaman **Login** (email + password, dengan ikon mata untuk menampilkan/menyembunyikan password, dan link **Lupa Password?** yang mengirim email reset). Tidak ada tombol daftar — akun hanya dibuat lewat Firebase Console seperti langkah di atas.
 
 ## Menjalankan di Lokal
 
@@ -64,4 +115,4 @@ Ikuti instruksi di terminal (login, pilih scope, dsb). Vercel akan otomatis mend
 - **Biaya Ongkir Shopee dihapus.** Karena Shopee sudah pasti gratis ongkir, field "Ongkos Kirim (Rp)" dan "Potongan Gratis Ongkir (Rp)" di form Tambah Pembelian sudah dihapus. Perhitungan `Total Modal Shopee` sekarang: `Subtotal Barang - Voucher + Biaya Layanan + Biaya Lainnya`.
 - Field **Biaya Lainnya (Rp)** yang sebelumnya ada di data tapi belum punya input di form, sekarang sudah ditambahkan supaya bisa diisi manual.
 - Kartu statistik "Biaya Ongkir Shopee" di Dashboard diganti menjadi "Total Biaya Layanan".
-- Data masih tersimpan di `localStorage` browser (belum terhubung ke database/backend). Untuk data multi-user/permanen, perlu ditambahkan backend (mis. Supabase/Firebase) — beri tahu saya jika ingin dibantu menambahkannya.
+- **Terhubung ke Firebase.** Data tidak lagi disimpan di `localStorage`, melainkan di Cloud Firestore (realtime, multi-perangkat) dan aplikasi kini mewajibkan login (Firebase Authentication, email + password saja, tanpa pendaftaran mandiri). Lihat bagian **🔥 Setup Firebase** di atas untuk langkah aktivasinya.

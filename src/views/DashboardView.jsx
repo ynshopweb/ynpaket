@@ -44,9 +44,8 @@ function DashboardView({ stats, packages, shopeeAccounts, helpers, onViewDetail,
                     <div>
                         <h3 className="font-bold text-slate-800 text-base mb-3">Statistik Keuangan Bulan Ini</h3>
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            <FinanceCard label="Total Modal Belanja" amount={`Rp${stats.totalModal.toLocaleString('id-ID')}`} subtitle="Harga bersih setelah diskon" bg="bg-emerald-500" icon="💰" />
-                            <FinanceCard label="Hemat Voucher / Diskon" amount={`Rp${stats.totalVouchers.toLocaleString('id-ID')}`} subtitle="Hemat dari promo Shopee" bg="bg-purple-500" icon="🎟️" />
-                            <FinanceCard label="Total Biaya Layanan" amount={`Rp${stats.totalFees.toLocaleString('id-ID')}`} subtitle="Biaya layanan & lainnya" bg="bg-blue-500" icon="🧾" />
+                            <FinanceCard label="Total Modal Belanja" amount={`Rp${stats.totalModal.toLocaleString('id-ID')}`} subtitle="Total Harga Pesanan + Fee Jasa CO" bg="bg-emerald-500" icon="💰" />
+                            <FinanceCard label="Total Fee Jasa CO" amount={`Rp${stats.totalFeeJasaCo.toLocaleString('id-ID')}`} subtitle="Akumulasi fee jasa checkout" bg="bg-blue-500" icon="🧾" />
                             <FinanceCard label="COD Belum Dibayar" amount={`Rp${stats.codUnpaid.toLocaleString('id-ID')}`} subtitle="Perlu siapkan uang tunai" bg="bg-amber-500" icon="💵" />
                         </div>
                     </div>
@@ -88,11 +87,11 @@ function DashboardView({ stats, packages, shopeeAccounts, helpers, onViewDetail,
                                             </td>
                                             <td className="p-3 text-xs text-slate-600 max-w-[120px] truncate">{pkg.recipient.name}</td>
                                             <td className="p-3">
-                                                {pkg.financials.paymentMethod === 'COD' ? (
+                                                {pkg.financials.metodePembayaran === 'COD' ? (
                                                     <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                                                         pkg.financials.codStatus === 'Sudah dibayar' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'
                                                     }`}>
-                                                        Rp{(pkg.financials.totalShopeePayment/1000).toFixed(0)}k ({pkg.financials.codStatus})
+                                                        Rp{(pkg.financials.totalModal/1000).toFixed(0)}k ({pkg.financials.codStatus})
                                                     </span>
                                                 ) : (
                                                     <span className="text-xs text-slate-400">Non-COD</span>

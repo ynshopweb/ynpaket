@@ -15,7 +15,7 @@ function ReportsView({ packages, shopeeAccounts, helpers }) {
                             <div className="space-y-3">
                                 {shopeeAccounts.map(acc => {
                                     const accPkgs = packages.filter(p => p.shopeeAccountId === acc.id);
-                                    const totalSpent = accPkgs.reduce((sum, p) => sum + p.financials.totalShopeePayment, 0);
+                                    const totalSpent = accPkgs.reduce((sum, p) => sum + p.financials.totalModal, 0);
                                     return (
                                         <div key={acc.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
                                             <div>
@@ -37,7 +37,7 @@ function ReportsView({ packages, shopeeAccounts, helpers }) {
                             <div className="space-y-3">
                                 {helpers.map(hlp => {
                                     const hlpPkgs = packages.filter(p => p.helperId === hlp.id);
-                                    const totalSpent = hlpPkgs.reduce((sum, p) => sum + p.financials.totalShopeePayment, 0);
+                                    const totalSpent = hlpPkgs.reduce((sum, p) => sum + p.financials.totalModal, 0);
                                     return (
                                         <div key={hlp.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
                                             <div>

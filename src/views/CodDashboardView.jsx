@@ -55,7 +55,7 @@ function CodDashboardView({ packages, stats, onMarkCodPaid, onViewDetail }) {
                                                 <div className="text-xs font-mono text-slate-500">{pkg.shipping.resi || '-'}</div>
                                             </td>
                                             <td className="p-3 font-bold text-slate-900">
-                                                Rp{pkg.financials.totalShopeePayment.toLocaleString('id-ID')}
+                                                Rp{pkg.financials.totalModal.toLocaleString('id-ID')}
                                             </td>
                                             <td className="p-3">
                                                 <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${
