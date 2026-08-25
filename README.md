@@ -60,6 +60,7 @@ Ikuti instruksi di terminal (login, pilih scope, dsb). Vercel akan otomatis mend
 
 ## Catatan Perubahan dari Versi Sebelumnya
 
+- **Semua data dummy/contoh dihapus.** `src/data/seedData.js` sekarang berisi array kosong (`initialShopeeAccounts`, `initialHelpers`, `initialProducts`, `initialPackages`). Aplikasi mulai dari kondisi bersih — silakan tambahkan Akun Shopee, Helper Checkout, dan Produk sendiri lewat menu Master Data sebelum mulai mencatat pembelian.
 - **Biaya Ongkir Shopee dihapus.** Karena Shopee sudah pasti gratis ongkir, field "Ongkos Kirim (Rp)" dan "Potongan Gratis Ongkir (Rp)" di form Tambah Pembelian sudah dihapus. Perhitungan `Total Modal Shopee` sekarang: `Subtotal Barang - Voucher + Biaya Layanan + Biaya Lainnya`.
 - Field **Biaya Lainnya (Rp)** yang sebelumnya ada di data tapi belum punya input di form, sekarang sudah ditambahkan supaya bisa diisi manual.
 - Kartu statistik "Biaya Ongkir Shopee" di Dashboard diganti menjadi "Total Biaya Layanan".
