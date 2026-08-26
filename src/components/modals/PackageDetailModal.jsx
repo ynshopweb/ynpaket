@@ -1,7 +1,7 @@
 import React from 'react';
 import StatusBadge from '../common/StatusBadge';
 
-function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking, copyToClipboard }) {
+function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking, onDeletePackage, copyToClipboard }) {
             const acc = shopeeAccounts.find(a=>a.id === pkg.shopeeAccountId);
             const jasaCo = jasaCoList.find(j=>j.id === pkg.jasaCoId);
 
@@ -123,20 +123,30 @@ function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onM
                             </div>
                         </div>
 
-                        <div className="p-4 bg-slate-50 border-t flex justify-between items-center">
-                            {pkg.financials.metodePembayaran === 'COD' && pkg.financials.codStatus !== 'Sudah dibayar' ? (
-                                <button onClick={onMarkCodPaid} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl">
-                                    ✓ Tandai COD Sudah Dibayar
-                                </button>
-                            ) : <div></div>}
+                        <div className="p-4 bg-slate-50 border-t flex justify-between items-center gap-2">
+                            <button
+                                onClick={() => onDeletePackage && onDeletePackage(pkg)}
+                                className="text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold text-xs px-3.5 py-2 rounded-xl"
+                                title="Hapus paket ini beserta data terkaitnya"
+                            >
+                                🗑️ Hapus Paket
+                            </button>
 
-                            {pkg.shipping.status === 'Berhasil Diterima' && !pkg.stockSynced && (
-                                <button onClick={onSyncStock} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl">
-                                    + Masukkan Barang ke Stok Rumah
-                                </button>
-                            )}
+                            <div className="flex items-center gap-2 ml-auto">
+                                {pkg.financials.metodePembayaran === 'COD' && pkg.financials.codStatus !== 'Sudah dibayar' && (
+                                    <button onClick={onMarkCodPaid} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs px-3.5 py-2 rounded-xl">
+                                        ✓ Tandai COD Sudah Dibayar
+                                    </button>
+                                )}
 
-                            <button onClick={onClose} className="px-4 py-2 border rounded-xl bg-white font-medium text-xs">Tutup</button>
+                                {pkg.shipping.status === 'Berhasil Diterima' && !pkg.stockSynced && (
+                                    <button onClick={onSyncStock} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl">
+                                        + Masukkan Barang ke Stok Rumah
+                                    </button>
+                                )}
+
+                                <button onClick={onClose} className="px-4 py-2 border rounded-xl bg-white font-medium text-xs">Tutup</button>
+                            </div>
                         </div>
                     </div>
                 </div>

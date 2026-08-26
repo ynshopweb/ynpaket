@@ -31,6 +31,9 @@ import {
   onSnapshot,
   query,
   orderBy,
+  where,
+  getDocs,
+  writeBatch,
   serverTimestamp,
 } from 'firebase/firestore';
 
@@ -162,4 +165,35 @@ export async function tandaiCodDibayar(paketId, extra = {}) {
 
 export async function tambahRiwayatTracking(paketId, entry) {
   await addItem(COLLECTIONS.tracking, { paketId, ...entry });
+}
+
+/**
+ * Hapus satu paket beserta seluruh data terkait yang menempel padanya:
+ * Pembelian, Isi Paket, Tracking, dan COD (jika ada).
+ * Dipakai saat pengguna salah menaruh resi/paket atau ingin membatalkannya.
+ * @param {string} paketId
+ */
+export async function hapusPaketLengkap(paketId) {
+  const batch = writeBatch(db);
+
+  // 1. Dokumen utama Paket & Pembelian (memakai ID yang sama dengan paketId)
+  batch.delete(doc(db, COLLECTIONS.paket, paketId));
+  batch.delete(doc(db, COLLECTIONS.pembelian, paketId));
+  // Dokumen COD (jika metode bayar bukan COD, delete pada ID yang tidak ada
+  // ini aman & tidak menimbulkan error di Firestore)
+  batch.delete(doc(db, COLLECTIONS.cod, paketId));
+
+  // 2. Rincian Isi Paket (disimpan sebagai dokumen terpisah dengan field paketId)
+  const isiPaketSnap = await getDocs(
+    query(collection(db, COLLECTIONS.isiPaket), where('paketId', '==', paketId))
+  );
+  isiPaketSnap.forEach((d) => batch.delete(d.ref));
+
+  // 3. Riwayat Tracking (disimpan sebagai dokumen terpisah dengan field paketId)
+  const trackingSnap = await getDocs(
+    query(collection(db, COLLECTIONS.tracking), where('paketId', '==', paketId))
+  );
+  trackingSnap.forEach((d) => batch.delete(d.ref));
+
+  await batch.commit();
 }

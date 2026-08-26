@@ -13,6 +13,7 @@ import PackageDetailModal from './components/modals/PackageDetailModal';
 import AddAccountModal from './components/modals/AddAccountModal';
 import AddProductModal from './components/modals/AddProductModal';
 import ConfirmSyncStockModal from './components/modals/ConfirmSyncStockModal';
+import ConfirmDeletePackageModal from './components/modals/ConfirmDeletePackageModal';
 import LoginView from './views/LoginView';
 import MasterDataView from './views/MasterDataView';
 import { trackingService } from './services/trackingService';
@@ -25,6 +26,7 @@ import {
     createPembelianLengkap,
     tandaiCodDibayar,
     tambahRiwayatTracking,
+    hapusPaketLengkap,
 } from './services/firestoreService';
 
 function App() {
@@ -128,6 +130,7 @@ function App() {
             const [showProductModal, setShowProductModal] = useState(false);
             const [editingProduct, setEditingProduct] = useState(null); // produk yang sedang diedit
             const [showSyncStockModal, setShowSyncStockModal] = useState(null); // package object
+            const [showDeleteModal, setShowDeleteModal] = useState(null); // package object
             const [toast, setToast] = useState(null);
 
             // API key tracking TIDAK disimpan di browser. Hanya provider/base URL.
@@ -256,6 +259,18 @@ function App() {
                 } catch (err) {
                     console.error(err);
                     showToast('Gagal menyinkronkan stok.', 'error');
+                }
+            };
+
+            const handleDeletePackage = async (pkg) => {
+                try {
+                    await hapusPaketLengkap(pkg.id);
+                    setShowDeleteModal(null);
+                    setShowDetailModal(null);
+                    showToast(`Paket ${pkg.id} berhasil dihapus.`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus paket.', 'error');
                 }
             };
 
@@ -478,6 +493,7 @@ function App() {
                                     onMarkCodPaid={handleMarkCodPaid}
                                     onSyncStock={(pkg) => setShowSyncStockModal(pkg)}
                                     onUpdateTracking={handleUpdateTracking}
+                                    onDeletePackage={(pkg) => setShowDeleteModal(pkg)}
                                     copyToClipboard={copyToClipboard}
                                 />
                             )}
@@ -664,7 +680,17 @@ function App() {
                                 setShowDetailModal(null);
                             }}
                             onUpdateTracking={() => handleUpdateTracking(showDetailModal)}
+                            onDeletePackage={(pkg) => setShowDeleteModal(pkg)}
                             copyToClipboard={copyToClipboard}
+                        />
+                    )}
+
+                    {/* Confirm Delete Package Modal */}
+                    {showDeleteModal && (
+                        <ConfirmDeletePackageModal
+                            pkg={showDeleteModal}
+                            onClose={() => setShowDeleteModal(null)}
+                            onConfirm={() => handleDeletePackage(showDeleteModal)}
                         />
                     )}
 
