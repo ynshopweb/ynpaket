@@ -39,10 +39,10 @@ function App() {
             const [products, setProducts] = useState([]);
             const [dataLoading, setDataLoading] = useState(true);
             const [masterData, setMasterData] = useState({ jasaCo: [], alamat: [], kurir: [], kantorKurir: [] });
-            const [trackingApiConfig, setTrackingApiConfig] = useState(() => {
-                const saved = localStorage.getItem('yn_tracking_config');
-                return saved ? JSON.parse(saved) : trackingService.config;
-            });
+            const [trackingApiConfig, setTrackingApiConfig] = useState(() => ({
+                provider: 'biteship',
+                baseUrl: '/api/tracking'
+            }));
 
             // Berlangganan data Firestore secara realtime setelah user login.
             // Koleksi: paket, akunCo, helperCheckout, produk
@@ -116,20 +116,34 @@ function App() {
             const [searchQuery, setSearchQuery] = useState('');
             const [statusFilter, setStatusFilter] = useState('Semua');
             const [accountFilter, setAccountFilter] = useState('Semua');
+            const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+            const [mobileMasterDataExpanded, setMobileMasterDataExpanded] = useState(false);
+            const [masterDataEntity, setMasterDataEntity] = useState(null);
+
+            // Navigasi dari drawer mobile: pindah tab & (opsional) langsung buka sub-entitas Master Data
+            const goToTab = (tab, entity = null) => {
+                setActiveTab(tab);
+                if (entity) setMasterDataEntity(entity);
+                setMobileMenuOpen(false);
+            };
 
             // Modals & Sliders State
             const [showNewPurchaseModal, setShowNewPurchaseModal] = useState(false);
             const [showDetailModal, setShowDetailModal] = useState(null); // package object
             const [showAccountModal, setShowAccountModal] = useState(false);
+            const [editingAccount, setEditingAccount] = useState(null); // akun CO yang sedang diedit
             const [showHelperModal, setShowHelperModal] = useState(false);
             const [showProductModal, setShowProductModal] = useState(false);
+            const [editingProduct, setEditingProduct] = useState(null); // produk yang sedang diedit
             const [showSyncStockModal, setShowSyncStockModal] = useState(null); // package object
             const [toast, setToast] = useState(null);
 
-            // Konfigurasi tracking API tetap disimpan lokal (bukan bagian data bisnis utama)
-            useEffect(() => { 
-                localStorage.setItem('yn_tracking_config', JSON.stringify(trackingApiConfig));
-                trackingService.config = trackingApiConfig;
+            // API key tracking TIDAK disimpan di browser. Hanya provider/base URL.
+            useEffect(() => {
+                trackingService.config = {
+                    provider: trackingApiConfig.provider || 'biteship',
+                    baseUrl: '/api/tracking'
+                };
             }, [trackingApiConfig]);
 
             // Helper for Toast Notifications
@@ -258,20 +272,21 @@ function App() {
                 try {
                     const result = await trackingService.track(pkg.shipping.courier, pkg.shipping.resi);
                     if (result.success) {
-                        const lastUpdate = result.lastUpdate || new Date().toISOString().replace('T', ' ').substring(0, 16);
+                        const lastUpdate = result.lastUpdate || new Date().toISOString();
                         await updateItem(COLLECTIONS.paket, pkg.id, {
                             'shipping.status': result.currentStatus,
-                            'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation,
+                            'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation || '',
                             'shipping.lastUpdate': lastUpdate,
-                            trackingHistory: result.history || pkg.trackingHistory || []
+                            trackingHistory: result.history || []
                         });
-                        // Catat riwayat tracking terbaru ke koleksi Tracking
                         await tambahRiwayatTracking(pkg.id, {
                             status: result.currentStatus,
                             location: result.lastLocation || pkg.shipping.lastLocation || '',
                             time: lastUpdate
                         });
                         showToast(`Status paket ${pkg.id} berhasil diperbarui: ${result.currentStatus}`);
+                    } else {
+                        showToast(result.error || 'Tracking tidak tersedia.', 'error');
                     }
                 } catch (err) {
                     console.error(err);
@@ -371,10 +386,18 @@ function App() {
                     {/* Main Content Area */}
                     <main className="flex-1 flex flex-col min-w-0 pb-20 md:pb-6">
                         {/* Top App Bar */}
-                        <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-20 flex items-center justify-between gap-4">
-                            <div className="flex items-center space-x-3 md:hidden">
+                        <header className="bg-white border-b border-slate-200 px-4 py-3 sticky top-0 z-20 flex items-center gap-3">
+                            {/* Hamburger Menu (mobile only) */}
+                            <button
+                                onClick={() => setMobileMenuOpen(true)}
+                                className="md:hidden w-10 h-10 shrink-0 flex items-center justify-center rounded-xl border border-slate-200 text-slate-600 text-lg"
+                                aria-label="Buka menu"
+                            >
+                                ☰
+                            </button>
+
+                            <div className="flex items-center space-x-2.5 md:hidden shrink-0">
                                 <div className="w-8 h-8 rounded-lg bg-rose-500 text-white font-bold flex items-center justify-center text-xs">YN</div>
-                                <span className="font-bold text-slate-800">YN Paket</span>
                             </div>
 
                             {/* Global Search Bar */}
@@ -402,14 +425,6 @@ function App() {
                                     <span>Tambah Paket</span>
                                 </button>
                             </div>
-
-                            {/* Mobile Logout */}
-                            <button
-                                onClick={() => logout()}
-                                className="md:hidden text-xs font-medium text-slate-500 hover:text-rose-600 px-2 py-1"
-                            >
-                                Keluar
-                            </button>
                         </header>
 
                         {/* Page Content Renderer */}
@@ -490,8 +505,9 @@ function App() {
                                 <InventoryView 
                                     products={products}
                                     packages={packages}
-                                    onOpenAddModal={() => setShowProductModal(true)}
+                                    onOpenAddModal={() => { setEditingProduct(null); setShowProductModal(true); }}
                                     onSyncStock={(pkg) => setShowSyncStockModal(pkg)}
+                                    onEditProduct={(prod) => { setEditingProduct(prod); setShowProductModal(true); }}
                                 />
                             )}
 
@@ -499,7 +515,8 @@ function App() {
                                 <ShopeeAccountsView 
                                     accounts={shopeeAccounts}
                                     packages={packages}
-                                    onAddAccount={() => setShowAccountModal(true)}
+                                    onAddAccount={() => { setEditingAccount(null); setShowAccountModal(true); }}
+                                    onEditAccount={(acc) => { setEditingAccount(acc); setShowAccountModal(true); }}
                                 />
                             )}
 
@@ -515,6 +532,7 @@ function App() {
                                 <MasterDataView
                                     data={masterData}
                                     showToast={showToast}
+                                    initialEntity={masterDataEntity}
                                 />
                             )}
 
@@ -544,6 +562,88 @@ function App() {
                         <MobileNavItem icon="💰" label="COD" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
                         <MobileNavItem icon="🏬" label="Stok" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
                     </nav>
+
+                    {/* Mobile Drawer Menu (hamburger) — memuat semua menu termasuk Master Data & submenunya */}
+                    {mobileMenuOpen && (
+                        <div className="md:hidden fixed inset-0 z-40 flex">
+                            {/* Overlay */}
+                            <div
+                                className="absolute inset-0 bg-slate-900/50"
+                                onClick={() => setMobileMenuOpen(false)}
+                            ></div>
+
+                            {/* Panel */}
+                            <div className="relative w-72 max-w-[85vw] h-full bg-white shadow-xl flex flex-col yn-drawer-panel">
+                                <div className="flex items-center justify-between px-4 py-4 border-b border-slate-100">
+                                    <div className="flex items-center space-x-2.5">
+                                        <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-rose-400 to-pink-500 flex items-center justify-center text-white font-bold shadow-sm">YN</div>
+                                        <div>
+                                            <p className="font-bold text-slate-900 text-sm leading-tight">YN Paket</p>
+                                            <p className="text-[11px] text-slate-400">Menu Navigasi</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setMobileMenuOpen(false)}
+                                        className="w-9 h-9 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100"
+                                        aria-label="Tutup menu"
+                                    >
+                                        ✕
+                                    </button>
+                                </div>
+
+                                <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-1">
+                                    <NavItem icon="📊" label="Dashboard" active={activeTab === 'dashboard'} onClick={() => goToTab('dashboard')} />
+                                    <NavItem icon="📦" label="Paket" badge={packages.length} active={activeTab === 'packages'} onClick={() => goToTab('packages')} />
+                                    <NavItem icon="➕" label="Pembelian Baru" onClick={() => { setMobileMenuOpen(false); setShowNewPurchaseModal(true); }} />
+                                    <NavItem icon="🚚" label="Tracking" active={activeTab === 'packages'} onClick={() => goToTab('packages')} />
+                                    <NavItem icon="💵" label="COD" badge={packages.filter(p=>p.financials.metodePembayaran==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => goToTab('cod')} />
+                                    <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => goToTab('inventory')} />
+                                    <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => goToTab('accounts')} />
+                                    <NavItem icon="👤" label="Helper Checkout" active={activeTab === 'helpers'} onClick={() => goToTab('helpers')} />
+
+                                    {/* Master Data (expandable submenu) */}
+                                    <button
+                                        onClick={() => setMobileMasterDataExpanded((v) => !v)}
+                                        className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-medium transition-colors min-h-[44px] ${
+                                            activeTab === 'masterdata' ? 'bg-rose-50 text-rose-600' : 'text-slate-600 hover:bg-slate-50'
+                                        }`}
+                                    >
+                                        <span className="flex items-center space-x-3">
+                                            <span>🗂️</span>
+                                            <span>Master Data</span>
+                                        </span>
+                                        <span className={`text-xs transition-transform ${mobileMasterDataExpanded ? 'rotate-180' : ''}`}>▾</span>
+                                    </button>
+                                    {mobileMasterDataExpanded && (
+                                        <div className="pl-9 pr-1 py-1 space-y-0.5">
+                                            <button onClick={() => goToTab('masterdata', 'jasaCo')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Jasa CO</button>
+                                            <button onClick={() => goToTab('accounts')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Akun CO</button>
+                                            <button onClick={() => goToTab('masterdata', 'alamat')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Alamat</button>
+                                            <button onClick={() => goToTab('masterdata', 'kurir')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Kurir</button>
+                                            <button onClick={() => goToTab('masterdata', 'kantorKurir')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Lokasi Kurir</button>
+                                            <button onClick={() => goToTab('inventory')} className="w-full text-left px-3 py-2.5 rounded-lg text-sm text-slate-600 hover:bg-slate-50 min-h-[40px]">Produk</button>
+                                        </div>
+                                    )}
+
+                                    <NavItem icon="📈" label="Laporan" active={activeTab === 'reports'} onClick={() => goToTab('reports')} />
+                                    <NavItem icon="⚙️" label="Pengaturan" active={activeTab === 'settings'} onClick={() => goToTab('settings')} />
+                                </nav>
+
+                                <div className="px-4 py-3 border-t border-slate-100 flex items-center justify-between">
+                                    <div className="min-w-0">
+                                        <p className="text-xs font-medium text-slate-700 truncate" title={user.email}>{user.email}</p>
+                                        <p className="text-[10px] text-slate-400">Masuk sebagai pengguna</p>
+                                    </div>
+                                    <button
+                                        onClick={() => { setMobileMenuOpen(false); logout(); }}
+                                        className="text-xs font-medium text-slate-500 hover:text-rose-600 px-2.5 py-1.5 rounded-lg hover:bg-rose-50"
+                                    >
+                                        Keluar
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {/* --- MODALS --- */}
 
@@ -588,16 +688,24 @@ function App() {
                         />
                     )}
 
-                    {/* Add Shopee Account Modal */}
+                    {/* Add/Edit Shopee Account (Akun CO) Modal */}
                     {showAccountModal && (
                         <AddAccountModal 
                             jasaCoList={masterData.jasaCo}
-                            onClose={() => setShowAccountModal(false)}
+                            initial={editingAccount}
+                            onClose={() => { setShowAccountModal(false); setEditingAccount(null); }}
                             onSave={async (acc) => {
                                 try {
-                                    await addItem(COLLECTIONS.akunCo, acc);
+                                    if (editingAccount) {
+                                        const { id, ...rest } = acc;
+                                        await updateItem(COLLECTIONS.akunCo, id, rest);
+                                        showToast('Akun CO berhasil diperbarui!');
+                                    } else {
+                                        await addItem(COLLECTIONS.akunCo, acc);
+                                        showToast('Akun CO baru berhasil disimpan!');
+                                    }
                                     setShowAccountModal(false);
-                                    showToast('Akun CO baru berhasil disimpan!');
+                                    setEditingAccount(null);
                                 } catch (err) {
                                     console.error(err);
                                     showToast('Gagal menyimpan Akun CO.', 'error');
@@ -623,15 +731,23 @@ function App() {
                         />
                     )}
 
-                    {/* Add Product Modal */}
+                    {/* Add/Edit Product Modal */}
                     {showProductModal && (
                         <AddProductModal 
-                            onClose={() => setShowProductModal(false)}
+                            initial={editingProduct}
+                            onClose={() => { setShowProductModal(false); setEditingProduct(null); }}
                             onSave={async (prod) => {
                                 try {
-                                    await addItem(COLLECTIONS.produk, prod);
+                                    if (editingProduct) {
+                                        const { id, ...rest } = prod;
+                                        await updateItem(COLLECTIONS.produk, id, rest);
+                                        showToast('Produk berhasil diperbarui!');
+                                    } else {
+                                        await addItem(COLLECTIONS.produk, prod);
+                                        showToast('Produk baru berhasil disimpan!');
+                                    }
                                     setShowProductModal(false);
-                                    showToast('Produk baru berhasil disimpan!');
+                                    setEditingProduct(null);
                                 } catch (err) {
                                     console.error(err);
                                     showToast('Gagal menyimpan Produk.', 'error');

@@ -116,3 +116,20 @@ Ikuti instruksi di terminal (login, pilih scope, dsb). Vercel akan otomatis mend
 - Field **Biaya Lainnya (Rp)** yang sebelumnya ada di data tapi belum punya input di form, sekarang sudah ditambahkan supaya bisa diisi manual.
 - Kartu statistik "Biaya Ongkir Shopee" di Dashboard diganti menjadi "Total Biaya Layanan".
 - **Terhubung ke Firebase.** Data tidak lagi disimpan di `localStorage`, melainkan di Cloud Firestore (realtime, multi-perangkat) dan aplikasi kini mewajibkan login (Firebase Authentication, email + password saja, tanpa pendaftaran mandiri). Lihat bagian **🔥 Setup Firebase** di atas untuk langkah aktivasinya.
+
+
+## Live Tracking Biteship
+
+Tracking tidak lagi menggunakan mock/fake history. Alurnya:
+
+`Frontend → /api/tracking → Biteship API`
+
+Tambahkan Environment Variable di Vercel:
+
+- `BITESHIP_API_KEY` = API key Biteship Anda
+- Aktifkan untuk Production (dan Preview/Development bila diperlukan)
+- Setelah menyimpan variable, lakukan Redeploy.
+
+API key tidak disimpan di frontend, localStorage, Firestore, atau Git.
+
+Untuk SPX Express, aplikasi mengirim courier code `spx`. Pastikan akun Biteship Anda memiliki akses tracking SPX.

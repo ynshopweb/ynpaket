@@ -21,3 +21,12 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Animasi drawer menu mobile */
+@keyframes yn-drawer-slide-in {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+.yn-drawer-panel {
+  animation: yn-drawer-slide-in 0.2s ease-out;
+}

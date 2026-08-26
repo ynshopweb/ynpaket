@@ -1,21 +1,22 @@
 import React, { useState } from 'react';
 
-function AddAccountModal({ onClose, onSave, jasaCoList = [] }) {
-            const [label, setLabel] = useState('');
-            const [username, setUsername] = useState('');
-            const [phone, setPhone] = useState('');
-            const [note, setNote] = useState('');
-            const [jasaCoId, setJasaCoId] = useState('');
+function AddAccountModal({ onClose, onSave, jasaCoList = [], initial = null }) {
+            const isEdit = !!initial;
+            const [label, setLabel] = useState(initial?.label || '');
+            const [username, setUsername] = useState(initial?.username || '');
+            const [phone, setPhone] = useState(initial?.phone || '');
+            const [note, setNote] = useState(initial?.note || '');
+            const [jasaCoId, setJasaCoId] = useState(initial?.jasaCoId || '');
 
             const handleSubmit = (e) => {
                 e.preventDefault();
                 const selectedJasaCo = jasaCoList.find(j => j.id === jasaCoId);
                 onSave({
-                    id: 'acc-' + Date.now(),
+                    id: initial?.id || ('acc-' + Date.now()),
                     label,
                     username,
                     phone,
-                    status: 'Aktif',
+                    status: initial?.status || 'Aktif',
                     note,
                     jasaCoId: jasaCoId || null,
                     jasaCoNama: selectedJasaCo ? selectedJasaCo.nama : '',
@@ -24,9 +25,9 @@ function AddAccountModal({ onClose, onSave, jasaCoList = [] }) {
             };
 
             return (
-                <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4 text-xs">
-                        <h3 className="font-bold text-slate-900 text-base">Tambah Label Akun Shopee Baru</h3>
+                <div className="fixed inset-0 z-50 bg-slate-900/50 flex items-center justify-center p-4 overflow-y-auto">
+                    <div className="bg-white rounded-2xl p-5 w-full max-w-md space-y-4 text-xs my-8">
+                        <h3 className="font-bold text-slate-900 text-base">{isEdit ? 'Edit Akun Shopee (Akun CO)' : 'Tambah Label Akun Shopee Baru'}</h3>
                         <form onSubmit={handleSubmit} className="space-y-3">
                             <div>
                                 <label className="block font-medium mb-1">Nama / Label Akun (misal: Shopee Utama)</label>
@@ -56,7 +57,7 @@ function AddAccountModal({ onClose, onSave, jasaCoList = [] }) {
                             </div>
                             <div className="flex justify-end space-x-2 pt-2">
                                 <button type="button" onClick={onClose} className="px-3 py-1.5 border rounded">Batal</button>
-                                <button type="submit" className="px-4 py-1.5 bg-rose-500 text-white font-bold rounded">Simpan</button>
+                                <button type="submit" className="px-4 py-1.5 bg-rose-500 text-white font-bold rounded">{isEdit ? 'Simpan Perubahan' : 'Simpan'}</button>
                             </div>
                         </form>
                     </div>
