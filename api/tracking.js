@@ -1,6 +1,5 @@
 /**
  * Vercel Serverless Function: YN Paket -> Binderbyte
- * Required Vercel Environment Variable: BINDERBYTE_API_KEY
  */
 const BASE_URL = 'https://api.binderbyte.com/v1';
 
@@ -32,9 +31,9 @@ function normalizeCourier(value) {
 function formatStatus(status) {
     const map = {
         delivered: 'Berhasil diterima',
-        on-delivery: 'Dibawa kurir',
-        on process: 'Dalam perjalanan',
-        in transit: 'Dalam perjalanan',
+        'on-delivery': 'Dibawa kurir',
+        'on process': 'Dalam perjalanan',
+        'in transit': 'Dalam perjalanan',
         pending: 'Menunggu dikirim',
         returned: 'Retur',
         cancelled: 'Dibatalkan'
@@ -46,60 +45,67 @@ function formatStatus(status) {
 function normalizeHistory(history) {
     if (!Array.isArray(history)) return [];
     return history.map(item => ({
-        time: item.date || item.timestamp || '',
-        location: item.location || '',
-        status: item.desc || item.description || ''
+        time: item?.date || item?.timestamp || '',
+        location: item?.location || '',
+        status: item?.desc || item?.description || ''
     }));
 }
 
 export default async function handler(req, res) {
+    // 1. Pastikan CORS & Method valid
     if (req.method !== 'POST') {
         return res.status(405).json({ success: false, error: 'Method tidak diizinkan.' });
     }
 
-    const apiKey = process.env.BINDERBYTE_API_KEY;
-    if (!apiKey) {
-        return res.status(503).json({
-            success: false,
-            error: 'Tracking otomatis belum dikonfigurasi. Tambahkan BINDERBYTE_API_KEY di Environment Variables Vercel.'
-        });
-    }
-
-    const { courier, trackingNumber } = req.body || {};
-    const resi = String(trackingNumber || '').trim();
-    const courierCode = normalizeCourier(courier);
-
-    if (!resi) return res.status(400).json({ success: false, error: 'Nomor resi belum tersedia.' });
-    if (!courierCode) return res.status(400).json({ success: false, error: 'Kurir belum dipilih.' });
-
     try {
+        // Ambil API key (Mendukung nama variabel BINDERBYTE_API_KEY atau VITE_BINDERBYTE_API_KEY)
+        const apiKey = process.env.BINDERBYTE_API_KEY || process.env.VITE_BINDERBYTE_API_KEY;
+        
+        if (!apiKey) {
+            console.error('BINDERBYTE_API_KEY tidak ditemukan di process.env');
+            return res.status(503).json({
+                success: false,
+                error: 'API Key Binderbyte belum dikonfigurasi di Vercel.'
+            });
+        }
+
+        const body = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body || {});
+        const { courier, trackingNumber } = body;
+        const resi = String(trackingNumber || '').trim();
+        const courierCode = normalizeCourier(courier);
+
+        if (!resi) return res.status(400).json({ success: false, error: 'Nomor resi belum tersedia.' });
+        if (!courierCode) return res.status(400).json({ success: false, error: 'Kurir belum dipilih.' });
+
+        // Request ke Binderbyte
         const url = `${BASE_URL}/track?api_key=${apiKey}&courier=${encodeURIComponent(courierCode)}&awb=${encodeURIComponent(resi)}`;
         const response = await fetch(url);
 
         let payload = null;
-        try { payload = await response.json(); } catch (_) {}
+        try {
+            payload = await response.json();
+        } catch (e) {
+            console.error('Gagal parse JSON dari Binderbyte:', e);
+        }
 
-        // Tangani jika HTTP status / Binderbyte status bernilai tidak sukses (bukan 200)
-        if (!response.ok || payload?.status !== 200) {
-            console.error('Binderbyte tracking error:', response.status, payload);
-            
+        if (!response.ok || !payload || payload.status !== 200) {
             const statusCode = payload?.status || response.status;
-            const message = payload?.message || '';
+            const message = payload?.message || 'Gagal melacak resi';
 
-            if (statusCode === 400 || statusCode === 404 || message.toLowerCase().includes('not found')) {
-                return res.status(404).json({ success: false, error: 'Nomor resi tidak ditemukan atau kurir tidak sesuai.' });
+            if (statusCode === 400 || statusCode === 404) {
+                return res.status(404).json({ success: false, error: 'Nomor resi tidak ditemukan atau kode kurir salah.' });
             }
             if (statusCode === 401 || statusCode === 403) {
-                return res.status(502).json({ success: false, error: 'API key Binderbyte tidak valid atau kuota telah habis.' });
+                return res.status(401).json({ success: false, error: 'API Key Binderbyte salah atau kuota habis.' });
             }
-            return res.status(502).json({ success: false, error: message || 'Server tracking sedang mengalami gangguan.' });
+            return res.status(400).json({ success: false, error: message });
         }
 
         const data = payload.data || {};
         const summary = data.summary || {};
         const rawHistory = data.history || [];
         const history = normalizeHistory(rawHistory);
-        const last = history[0]; // Binderbyte mengurutkan history terbaru di indeks paling atas [0]
+        const last = history[0];
 
         return res.status(200).json({
             success: true,
@@ -116,7 +122,11 @@ export default async function handler(req, res) {
             history
         });
     } catch (error) {
-        console.error('Tracking proxy error:', error);
-        return res.status(502).json({ success: false, error: 'Gagal terhubung ke server tracking.' });
+        // Mencegah Serverless Function mengembalikan error HTTP 500 Uncaught
+        console.error('Uncaught Serverless Exception:', error);
+        return res.status(502).json({ 
+            success: false, 
+            error: 'Terjadi kesalahan internal pada serverless function: ' + error.message 
+        });
     }
 }
