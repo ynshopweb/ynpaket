@@ -29,17 +29,30 @@ function normalizeCourier(value) {
 }
 
 function formatStatus(status) {
-    const map = {
-        delivered: 'Berhasil diterima',
-        'on-delivery': 'Dibawa kurir',
-        'on process': 'Dalam perjalanan',
-        'in transit': 'Dalam perjalanan',
-        pending: 'Menunggu dikirim',
-        returned: 'Retur',
-        cancelled: 'Dibatalkan'
-    };
     const key = String(status || '').toLowerCase().trim();
-    return map[key] || status || 'Status tidak tersedia';
+    
+    const map = {
+        'delivered': 'Berhasil Diterima',
+        'berhasil diterima': 'Berhasil Diterima',
+        'on-delivery': 'Dibawa Kurir',
+        'dibawa kurir': 'Dibawa Kurir',
+        'on process': 'Dikirim',
+        'in transit': 'Dikirim',
+        'dalam perjalanan': 'Dikirim',
+        'sudah dikirim': 'Dikirim',
+        'transit': 'Dikirim',
+        'picked_up': 'Dikirim',
+        'pending': 'Draft',
+        'draft': 'Draft',
+        'dikemas': 'Dikemas',
+        'failure': 'Gagal Antar',
+        'gagal antar': 'Gagal Antar',
+        'returned': 'Retur',
+        'retur': 'Retur',
+        'cancelled': 'Retur'
+    };
+    
+    return map[key] || 'Dikirim';
 }
 
 function normalizeHistory(history) {
