@@ -1,9 +1,33 @@
-import React from 'react';
+import React, { useState } from 'react';
 import StatusBadge from '../common/StatusBadge';
+import { PACKAGE_STATUSES } from '../../constants/packageStatus';
 
-function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking, onDeletePackage, copyToClipboard }) {
+function PackageDetailModal({
+            pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking,
+            onDeletePackage, onManualStatusChange, onApplyPendingApiStatus, onDismissPendingApiStatus,
+            copyToClipboard
+        }) {
             const acc = shopeeAccounts.find(a=>a.id === pkg.shopeeAccountId);
             const jasaCo = jasaCoList.find(j=>j.id === pkg.jasaCoId);
+
+            const [selectedStatus, setSelectedStatus] = useState('');
+            const [statusNote, setStatusNote] = useState('');
+            const [savingStatus, setSavingStatus] = useState(false);
+
+            const isManual = pkg.shipping.statusSource === 'manual';
+            const hasPendingApi = !!pkg.shipping.pendingApiStatus;
+
+            const handleSaveStatus = async () => {
+                if (!selectedStatus || !onManualStatusChange) return;
+                setSavingStatus(true);
+                try {
+                    await onManualStatusChange({ status: selectedStatus, note: statusNote.trim() });
+                    setSelectedStatus('');
+                    setStatusNote('');
+                } finally {
+                    setSavingStatus(false);
+                }
+            };
 
             return (
                 <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -29,11 +53,82 @@ function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onM
                                 </div>
                                 <div>
                                     <span className="text-slate-400">Status Pengiriman:</span>
-                                    <div className="mt-0.5"><StatusBadge status={pkg.shipping.status} /></div>
+                                    <div className="mt-0.5"><StatusBadge status={pkg.shipping.status} source={pkg.shipping.statusSource} /></div>
+                                    <div className="text-[10px] text-slate-400 mt-0.5">
+                                        {isManual
+                                            ? `Diubah manual oleh ${pkg.shipping.manualStatusBy || 'admin'}${pkg.shipping.manualStatusAt ? ` · ${pkg.shipping.manualStatusAt}` : ''}`
+                                            : 'Sumber: Otomatis (Tracking API)'}
+                                    </div>
                                 </div>
                                 <div>
                                     <span className="text-slate-400">Metode Bayar:</span>
                                     <div className="font-bold text-rose-600">{pkg.financials.metodePembayaran} ({pkg.financials.codStatus})</div>
+                                </div>
+                            </div>
+
+                            {/* Peringatan: saran status baru dari API tertahan karena status sedang dikunci manual */}
+                            {hasPendingApi && (
+                                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 space-y-2">
+                                    <div className="flex items-start space-x-2">
+                                        <span className="text-base">⚠️</span>
+                                        <div>
+                                            <p className="font-semibold text-amber-800">
+                                                Ada pembaruan dari Tracking API: "{pkg.shipping.pendingApiStatus}"
+                                            </p>
+                                            <p className="text-amber-700">
+                                                Status paket ini sedang dikunci manual ("{pkg.shipping.status}"), jadi API tidak menimpanya secara otomatis.
+                                                {pkg.shipping.pendingApiUpdate && ` Terpantau: ${pkg.shipping.pendingApiUpdate}.`}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex space-x-2 pl-7">
+                                        <button
+                                            onClick={onApplyPendingApiStatus}
+                                            className="bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] px-3 py-1.5 rounded-lg"
+                                        >
+                                            ✓ Terapkan Status API
+                                        </button>
+                                        <button
+                                            onClick={onDismissPendingApiStatus}
+                                            className="bg-white border border-amber-300 hover:bg-amber-100 text-amber-700 font-medium text-[11px] px-3 py-1.5 rounded-lg"
+                                        >
+                                            Abaikan
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Ubah Status Manual */}
+                            <div className="bg-indigo-50/60 p-4 rounded-xl border border-indigo-100 space-y-2">
+                                <h4 className="font-bold text-slate-800 text-sm">✋ Ubah Status Manual</h4>
+                                <p className="text-[11px] text-slate-500">
+                                    Pakai ini kalau API tracking sedang error/down/limit habis, resi belum terbaca, atau kamu ingin mengoreksi status. Setelah diubah manual, tracking otomatis tidak akan menimpa status ini sampai kamu menerapkannya sendiri.
+                                </p>
+                                <div className="flex flex-col md:flex-row gap-2">
+                                    <select
+                                        value={selectedStatus}
+                                        onChange={(e) => setSelectedStatus(e.target.value)}
+                                        className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 flex-1 focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                    >
+                                        <option value="">— Pilih Status —</option>
+                                        {PACKAGE_STATUSES.map(st => (
+                                            <option key={st} value={st}>{st}</option>
+                                        ))}
+                                    </select>
+                                    <input
+                                        type="text"
+                                        value={statusNote}
+                                        onChange={(e) => setStatusNote(e.target.value)}
+                                        placeholder="Catatan (opsional), mis. 'API Binderbyte error'"
+                                        className="text-xs bg-white border border-slate-300 rounded-lg px-2.5 py-2 flex-[2] focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                                    />
+                                    <button
+                                        onClick={handleSaveStatus}
+                                        disabled={!selectedStatus || savingStatus}
+                                        className="bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-xs px-4 py-2 rounded-lg whitespace-nowrap"
+                                    >
+                                        {savingStatus ? 'Menyimpan...' : 'Simpan Status'}
+                                    </button>
                                 </div>
                             </div>
 
@@ -54,6 +149,9 @@ function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onM
                                     )}
                                 </div>
                                 <p className="text-[11px] text-slate-500">Update Terakhir: {pkg.shipping.lastUpdate} ({pkg.shipping.lastLocation})</p>
+                                {pkg.shipping.lastTrackingCheck && (
+                                    <p className="text-[11px] text-slate-400">Terakhir cek ke API: {pkg.shipping.lastTrackingCheck}</p>
+                                )}
                             </div>
 
                             {/* Tracking Timeline */}

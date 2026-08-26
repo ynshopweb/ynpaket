@@ -127,7 +127,7 @@ function PackagesListView({
                                                         </div>
                                                     </td>
                                                     <td className="p-3.5">
-                                                        <StatusBadge status={pkg.shipping.status} />
+                                                        <StatusBadge status={pkg.shipping.status} source={pkg.shipping.statusSource} />
                                                         <div className="text-[11px] text-slate-400 mt-1 max-w-[130px] truncate" title={pkg.shipping.lastLocation}>
                                                             📍 {pkg.shipping.lastLocation || 'Proses'}
                                                         </div>

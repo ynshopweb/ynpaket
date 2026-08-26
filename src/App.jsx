@@ -274,30 +274,164 @@ function App() {
                 }
             };
 
-            const handleUpdateTracking = async (pkg) => {
+            // Jeda minimum antar-panggilan API tracking untuk resi yang sama,
+            // supaya tidak boros kuota/hit API (bukan polling tiap beberapa detik).
+            const MIN_TRACKING_INTERVAL_MS = 3 * 60 * 1000; // 3 menit
+
+            const handleUpdateTracking = async (pkg, { force = false } = {}) => {
+                const lastCheckIso = pkg.shipping.lastTrackingCheck;
+                const lastCheckMs = lastCheckIso ? new Date(lastCheckIso).getTime() : 0;
+                const elapsed = Date.now() - lastCheckMs;
+
+                if (!force && lastCheckMs && elapsed < MIN_TRACKING_INTERVAL_MS) {
+                    const waitSec = Math.ceil((MIN_TRACKING_INTERVAL_MS - elapsed) / 1000);
+                    showToast(`Tracking baru saja diperbarui. Coba lagi dalam ${waitSec} detik.`, 'info');
+                    return;
+                }
+
                 showToast(`Memperbarui tracking resi ${pkg.shipping.resi}...`, 'info');
                 try {
                     const result = await trackingService.track(pkg.shipping.courier, pkg.shipping.resi);
-                    if (result.success) {
-                        const lastUpdate = result.lastUpdate || new Date().toISOString();
-                        await updateItem(COLLECTIONS.paket, pkg.id, {
-                            'shipping.status': result.currentStatus,
-                            'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation || '',
-                            'shipping.lastUpdate': lastUpdate,
-                            trackingHistory: result.history || []
-                        });
-                        await tambahRiwayatTracking(pkg.id, {
-                            status: result.currentStatus,
-                            location: result.lastLocation || pkg.shipping.lastLocation || '',
-                            time: lastUpdate
-                        });
-                        showToast(`Status paket ${pkg.id} berhasil diperbarui: ${result.currentStatus}`);
-                    } else {
-                        showToast(result.error || 'Tracking tidak tersedia.', 'error');
+                    const checkedAt = new Date().toISOString();
+
+                    if (!result.success) {
+                        // Tetap catat waktu percobaan supaya throttle di atas tetap berlaku
+                        // walau API sedang error/limit habis. Status paket TIDAK diubah/dihapus —
+                        // aplikasi tetap bisa dipakai penuh, tinggal ubah status manual bila perlu.
+                        await updateItem(COLLECTIONS.paket, pkg.id, { 'shipping.lastTrackingCheck': checkedAt });
+                        showToast(
+                            (result.error || 'Tracking sedang tidak tersedia.') + ' Status paket tidak berubah — silakan ubah status manual jika perlu.',
+                            'error'
+                        );
+                        return;
                     }
+
+                    const lastUpdate = result.lastUpdate || checkedAt;
+                    const isManualLocked = pkg.shipping.statusSource === 'manual';
+
+                    if (isManualLocked) {
+                        // Status paket ini pernah dikoreksi manual — JANGAN ditimpa otomatis.
+                        // Simpan saja hasil API sebagai "saran" yang bisa diterapkan lewat
+                        // Detail Paket, supaya perubahan status tetap terkendali & tidak
+                        // mengejutkan admin/user.
+                        await updateItem(COLLECTIONS.paket, pkg.id, {
+                            'shipping.lastTrackingCheck': checkedAt,
+                            'shipping.pendingApiStatus': result.currentStatus,
+                            'shipping.pendingApiLocation': result.lastLocation || '',
+                            'shipping.pendingApiUpdate': lastUpdate,
+                        });
+                        showToast(
+                            `Status dari API: "${result.currentStatus}" — tapi paket ${pkg.id} sedang dikunci status manual ("${pkg.shipping.status}"). Buka Detail Paket untuk menerapkan status API jika perlu.`,
+                            'info'
+                        );
+                        return;
+                    }
+
+                    await updateItem(COLLECTIONS.paket, pkg.id, {
+                        'shipping.status': result.currentStatus,
+                        'shipping.statusSource': 'auto',
+                        'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation || '',
+                        'shipping.lastUpdate': lastUpdate,
+                        'shipping.lastTrackingCheck': checkedAt,
+                        'shipping.pendingApiStatus': null,
+                        'shipping.pendingApiLocation': null,
+                        'shipping.pendingApiUpdate': null,
+                        trackingHistory: result.history || []
+                    });
+                    await tambahRiwayatTracking(pkg.id, {
+                        status: result.currentStatus,
+                        location: result.lastLocation || pkg.shipping.lastLocation || '',
+                        time: lastUpdate,
+                        source: 'auto'
+                    });
+                    showToast(`Status paket ${pkg.id} berhasil diperbarui: ${result.currentStatus}`);
                 } catch (err) {
                     console.error(err);
-                    showToast('Gagal memperbarui tracking.', 'error');
+                    showToast('Gagal memperbarui tracking. Status paket tidak berubah.', 'error');
+                }
+            };
+
+            // Ubah status paket secara manual (dipakai saat API error/down/limit habis/resi
+            // belum terbaca, atau saat admin ingin mengoreksi status). Setiap perubahan
+            // dicatat (siapa, kapan, catatan) dan MENGUNCI status supaya auto-update dari
+            // tracking API tidak langsung menimpanya.
+            const handleManualStatusChange = async (pkg, { status, note = '' }) => {
+                if (!status) return;
+                const now = new Date().toISOString();
+                const actor = user?.email || user?.displayName || 'Admin';
+                const historyEntry = {
+                    time: now,
+                    location: note ? `Manual: ${note}` : 'Diubah manual oleh admin/user',
+                    status
+                };
+                const currentHistory = Array.isArray(pkg.trackingHistory) ? pkg.trackingHistory : [];
+
+                try {
+                    await updateItem(COLLECTIONS.paket, pkg.id, {
+                        'shipping.status': status,
+                        'shipping.statusSource': 'manual',
+                        'shipping.manualStatusAt': now,
+                        'shipping.manualStatusBy': actor,
+                        'shipping.manualStatusNote': note || '',
+                        'shipping.lastUpdate': now,
+                        // Kosongkan saran dari API sebelumnya karena admin baru saja
+                        // menetapkan status secara sadar.
+                        'shipping.pendingApiStatus': null,
+                        'shipping.pendingApiLocation': null,
+                        'shipping.pendingApiUpdate': null,
+                        trackingHistory: [historyEntry, ...currentHistory]
+                    });
+                    await tambahRiwayatTracking(pkg.id, {
+                        status,
+                        location: historyEntry.location,
+                        time: now,
+                        source: 'manual',
+                        actor,
+                        note: note || ''
+                    });
+                    showToast(`Status paket ${pkg.id} diubah manual menjadi "${status}".`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal mengubah status secara manual.', 'error');
+                }
+            };
+
+            // Terapkan status hasil tracking API yang sempat tertahan karena paket
+            // sedang dikunci manual (dipanggil dari tombol "Terapkan Status API").
+            const handleApplyPendingApiStatus = async (pkg) => {
+                if (!pkg.shipping.pendingApiStatus) return;
+                const now = new Date().toISOString();
+                const status = pkg.shipping.pendingApiStatus;
+                const location = pkg.shipping.pendingApiLocation || pkg.shipping.lastLocation || '';
+                const time = pkg.shipping.pendingApiUpdate || now;
+                try {
+                    await updateItem(COLLECTIONS.paket, pkg.id, {
+                        'shipping.status': status,
+                        'shipping.statusSource': 'auto',
+                        'shipping.lastLocation': location,
+                        'shipping.lastUpdate': time,
+                        'shipping.pendingApiStatus': null,
+                        'shipping.pendingApiLocation': null,
+                        'shipping.pendingApiUpdate': null,
+                    });
+                    await tambahRiwayatTracking(pkg.id, { status, location, time, source: 'auto' });
+                    showToast(`Status API diterapkan ke paket ${pkg.id}: "${status}".`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menerapkan status dari API.', 'error');
+                }
+            };
+
+            // Abaikan saran status dari API (tetap pakai status manual yang sudah ditetapkan).
+            const handleDismissPendingApiStatus = async (pkg) => {
+                try {
+                    await updateItem(COLLECTIONS.paket, pkg.id, {
+                        'shipping.pendingApiStatus': null,
+                        'shipping.pendingApiLocation': null,
+                        'shipping.pendingApiUpdate': null,
+                    });
+                } catch (err) {
+                    console.error(err);
                 }
             };
 
@@ -681,6 +815,32 @@ function App() {
                             }}
                             onUpdateTracking={() => handleUpdateTracking(showDetailModal)}
                             onDeletePackage={(pkg) => setShowDeleteModal(pkg)}
+                            onManualStatusChange={async (payload) => {
+                                await handleManualStatusChange(showDetailModal, payload);
+                                setShowDetailModal(prev => prev ? ({
+                                    ...prev,
+                                    shipping: { ...prev.shipping, status: payload.status, statusSource: 'manual' }
+                                }) : prev);
+                            }}
+                            onApplyPendingApiStatus={() => {
+                                handleApplyPendingApiStatus(showDetailModal);
+                                setShowDetailModal(prev => prev ? ({
+                                    ...prev,
+                                    shipping: {
+                                        ...prev.shipping,
+                                        status: prev.shipping.pendingApiStatus,
+                                        statusSource: 'auto',
+                                        pendingApiStatus: null, pendingApiLocation: null, pendingApiUpdate: null
+                                    }
+                                }) : prev);
+                            }}
+                            onDismissPendingApiStatus={() => {
+                                handleDismissPendingApiStatus(showDetailModal);
+                                setShowDetailModal(prev => prev ? ({
+                                    ...prev,
+                                    shipping: { ...prev.shipping, pendingApiStatus: null, pendingApiLocation: null, pendingApiUpdate: null }
+                                }) : prev);
+                            }}
                             copyToClipboard={copyToClipboard}
                         />
                     )}
