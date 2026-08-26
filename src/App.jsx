@@ -5,14 +5,12 @@ import PackagesListView from './views/PackagesListView';
 import CodDashboardView from './views/CodDashboardView';
 import InventoryView from './views/InventoryView';
 import ShopeeAccountsView from './views/ShopeeAccountsView';
-import HelpersView from './views/HelpersView';
 import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import MobileNavItem from './components/layout/MobileNavItem';
 import NewPurchaseModal from './components/modals/NewPurchaseModal';
 import PackageDetailModal from './components/modals/PackageDetailModal';
 import AddAccountModal from './components/modals/AddAccountModal';
-import AddHelperModal from './components/modals/AddHelperModal';
 import AddProductModal from './components/modals/AddProductModal';
 import ConfirmSyncStockModal from './components/modals/ConfirmSyncStockModal';
 import LoginView from './views/LoginView';
@@ -35,7 +33,6 @@ function App() {
             // States (disinkronkan realtime dari Cloud Firestore)
             const [packages, setPackages] = useState([]);
             const [shopeeAccounts, setShopeeAccounts] = useState([]);
-            const [helpers, setHelpers] = useState([]);
             const [products, setProducts] = useState([]);
             const [dataLoading, setDataLoading] = useState(true);
             const [masterData, setMasterData] = useState({ jasaCo: [], alamat: [], kurir: [], kantorKurir: [] });
@@ -45,11 +42,14 @@ function App() {
             }));
 
             // Berlangganan data Firestore secara realtime setelah user login.
-            // Koleksi: paket, akunCo, helperCheckout, produk
+            // Koleksi: paket, akunCo, produk
+            // (Catatan: "Helper Checkout" sudah digabung ke master data "Jasa CO" —
+            // koleksi helperCheckout lama TIDAK dihapus dari Firestore, hanya
+            // tidak lagi dipakai sebagai master data terpisah di UI.)
             useEffect(() => {
                 if (!user) return undefined;
 
-                let loadedFlags = { paket: false, akunCo: false, helper: false, produk: false };
+                let loadedFlags = { paket: false, akunCo: false, produk: false };
                 const checkAllLoaded = () => {
                     if (Object.values(loadedFlags).every(Boolean)) setDataLoading(false);
                 };
@@ -66,12 +66,6 @@ function App() {
                     checkAllLoaded();
                 }, () => { loadedFlags.akunCo = true; checkAllLoaded(); });
 
-                const unsubHelper = subscribeCollection(COLLECTIONS.helperCheckout, (items) => {
-                    setHelpers(items);
-                    loadedFlags.helper = true;
-                    checkAllLoaded();
-                }, () => { loadedFlags.helper = true; checkAllLoaded(); });
-
                 const unsubProduk = subscribeCollection(COLLECTIONS.produk, (items) => {
                     setProducts(items);
                     loadedFlags.produk = true;
@@ -81,7 +75,6 @@ function App() {
                 return () => {
                     unsubPaket();
                     unsubAkun();
-                    unsubHelper();
                     unsubProduk();
                 };
             }, [user]);
@@ -132,7 +125,6 @@ function App() {
             const [showDetailModal, setShowDetailModal] = useState(null); // package object
             const [showAccountModal, setShowAccountModal] = useState(false);
             const [editingAccount, setEditingAccount] = useState(null); // akun CO yang sedang diedit
-            const [showHelperModal, setShowHelperModal] = useState(false);
             const [showProductModal, setShowProductModal] = useState(false);
             const [editingProduct, setEditingProduct] = useState(null); // produk yang sedang diedit
             const [showSyncStockModal, setShowSyncStockModal] = useState(null); // package object
@@ -170,12 +162,12 @@ function App() {
             // --- COMPUTED STATS ---
             const stats = useMemo(() => {
                 const totalPackages = packages.length;
-                const waitingShip = packages.filter(p => p.shipping.status === 'Menunggu dikirim').length;
-                const shipped = packages.filter(p => p.shipping.status === 'Sudah dikirim').length;
-                const inTransit = packages.filter(p => p.shipping.status === 'Dalam perjalanan' || p.shipping.status === 'Transit').length;
-                const withCourier = packages.filter(p => p.shipping.status === 'Dibawa kurir').length;
-                const delivered = packages.filter(p => p.shipping.status === 'Berhasil diterima').length;
-                const failedOrProblem = packages.filter(p => ['Gagal antar', 'Retur', 'Bermasalah', 'Hilang'].includes(p.shipping.status)).length;
+                const draft = packages.filter(p => p.shipping.status === 'Draft').length;
+                const dikemas = packages.filter(p => p.shipping.status === 'Dikemas').length;
+                const dikirim = packages.filter(p => p.shipping.status === 'Dikirim').length;
+                const dibawaKurir = packages.filter(p => p.shipping.status === 'Dibawa Kurir').length;
+                const berhasilDiterima = packages.filter(p => p.shipping.status === 'Berhasil Diterima').length;
+                const gagalRetur = packages.filter(p => ['Gagal Antar', 'Retur'].includes(p.shipping.status)).length;
                 
                 // Financials
                 const totalModalKeseluruhan = packages.reduce((acc, p) => acc + (p.financials.totalModal || 0), 0);
@@ -189,10 +181,10 @@ function App() {
 
                 // Warnings
                 const missingResi = packages.filter(p => !p.shipping.resi && p.shipping.status !== 'Draft');
-                const pendingStockSync = packages.filter(p => p.shipping.status === 'Berhasil diterima' && !p.stockSynced);
+                const pendingStockSync = packages.filter(p => p.shipping.status === 'Berhasil Diterima' && !p.stockSynced);
 
                 return {
-                    totalPackages, waitingShip, shipped, inTransit, withCourier, delivered, failedOrProblem,
+                    totalPackages, draft, dikemas, dikirim, dibawaKurir, berhasilDiterima, gagalRetur,
                     totalModal: totalModalKeseluruhan, totalFeeJasaCo,
                     codUnpaid, codPaid, codProblem,
                     missingResiCount: missingResi.length,
@@ -350,7 +342,6 @@ function App() {
                                     <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Master Data</p>
                                 </div>
                                 <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => setActiveTab('accounts')} />
-                                <NavItem icon="👤" label="Helper Checkout" active={activeTab === 'helpers'} onClick={() => setActiveTab('helpers')} />
                                 <NavItem icon="🗂️" label="Master Data" active={activeTab === 'masterdata'} onClick={() => setActiveTab('masterdata')} />
                                 <NavItem icon="📈" label="Laporan" active={activeTab === 'reports'} onClick={() => setActiveTab('reports')} />
                                 <NavItem icon="⚙️" label="Pengaturan" active={activeTab === 'settings'} onClick={() => setActiveTab('settings')} />
@@ -468,7 +459,6 @@ function App() {
                                     stats={stats} 
                                     packages={packages} 
                                     shopeeAccounts={shopeeAccounts}
-                                    helpers={helpers}
                                     onViewDetail={(pkg) => setShowDetailModal(pkg)}
                                     onQuickNew={() => setShowNewPurchaseModal(true)}
                                     onNavigateTab={(tab) => setActiveTab(tab)}
@@ -483,7 +473,7 @@ function App() {
                                     accountFilter={accountFilter}
                                     setAccountFilter={setAccountFilter}
                                     shopeeAccounts={shopeeAccounts}
-                                    helpers={helpers}
+                                    jasaCoList={masterData.jasaCo}
                                     onViewDetail={(pkg) => setShowDetailModal(pkg)}
                                     onMarkCodPaid={handleMarkCodPaid}
                                     onSyncStock={(pkg) => setShowSyncStockModal(pkg)}
@@ -520,14 +510,6 @@ function App() {
                                 />
                             )}
 
-                            {activeTab === 'helpers' && (
-                                <HelpersView 
-                                    helpers={helpers}
-                                    packages={packages}
-                                    onAddHelper={() => setShowHelperModal(true)}
-                                />
-                            )}
-
                             {activeTab === 'masterdata' && (
                                 <MasterDataView
                                     data={masterData}
@@ -540,7 +522,7 @@ function App() {
                                 <ReportsView 
                                     packages={packages}
                                     shopeeAccounts={shopeeAccounts}
-                                    helpers={helpers}
+                                    jasaCoList={masterData.jasaCo}
                                 />
                             )}
 
@@ -599,7 +581,6 @@ function App() {
                                     <NavItem icon="💵" label="COD" badge={packages.filter(p=>p.financials.metodePembayaran==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => goToTab('cod')} />
                                     <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => goToTab('inventory')} />
                                     <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => goToTab('accounts')} />
-                                    <NavItem icon="👤" label="Helper Checkout" active={activeTab === 'helpers'} onClick={() => goToTab('helpers')} />
 
                                     {/* Master Data (expandable submenu) */}
                                     <button
@@ -651,7 +632,6 @@ function App() {
                     {showNewPurchaseModal && (
                         <NewPurchaseModal 
                             shopeeAccounts={shopeeAccounts}
-                            helpers={helpers}
                             products={products}
                             jasaCoList={masterData.jasaCo}
                             onClose={() => setShowNewPurchaseModal(false)}
@@ -673,7 +653,7 @@ function App() {
                         <PackageDetailModal 
                             pkg={showDetailModal}
                             shopeeAccounts={shopeeAccounts}
-                            helpers={helpers}
+                            jasaCoList={masterData.jasaCo}
                             onClose={() => setShowDetailModal(null)}
                             onMarkCodPaid={() => {
                                 handleMarkCodPaid(showDetailModal.id);
@@ -709,23 +689,6 @@ function App() {
                                 } catch (err) {
                                     console.error(err);
                                     showToast('Gagal menyimpan Akun CO.', 'error');
-                                }
-                            }}
-                        />
-                    )}
-
-                    {/* Add Helper Modal */}
-                    {showHelperModal && (
-                        <AddHelperModal 
-                            onClose={() => setShowHelperModal(false)}
-                            onSave={async (hlp) => {
-                                try {
-                                    await addItem(COLLECTIONS.helperCheckout, hlp);
-                                    setShowHelperModal(false);
-                                    showToast('Helper Checkout baru berhasil disimpan!');
-                                } catch (err) {
-                                    console.error(err);
-                                    showToast('Gagal menyimpan Helper Checkout.', 'error');
                                 }
                             }}
                         />

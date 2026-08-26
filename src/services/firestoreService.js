@@ -13,7 +13,10 @@
 //   9. tracking       -> Tracking (riwayat pelacakan resi)
 //  10. cod            -> COD (status pembayaran Cash on Delivery)
 //  11. produk         -> Produk (stok/inventaris)
-//  12. helperCheckout -> Helper Checkout (mitra jasa titip, fitur existing)
+//  12. helperCheckout -> (LEGACY, tidak dipakai UI lagi) Helper Checkout lama —
+//                         sudah digabung menjadi bagian dari master data "Jasa CO".
+//                         Koleksi & dokumen lama TIDAK dihapus dari Firestore,
+//                         hanya tidak lagi dibaca/ditulis oleh aplikasi.
 //
 // Setiap collection punya: subscribe (realtime listener), add, update, remove.
 

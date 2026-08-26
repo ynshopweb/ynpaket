@@ -3,7 +3,7 @@ import StatCard from '../components/common/StatCard';
 import FinanceCard from '../components/common/FinanceCard';
 import StatusBadge from '../components/common/StatusBadge';
 
-function DashboardView({ stats, packages, shopeeAccounts, helpers, onViewDetail, onQuickNew, onNavigateTab }) {
+function DashboardView({ stats, packages, shopeeAccounts, onViewDetail, onQuickNew, onNavigateTab }) {
             return (
                 <div className="space-y-6">
                     {/* Welcome Banner */}
@@ -31,12 +31,12 @@ function DashboardView({ stats, packages, shopeeAccounts, helpers, onViewDetail,
                         </div>
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3">
                             <StatCard title="Total Paket" value={stats.totalPackages} color="bg-slate-100 text-slate-800" icon="📦" />
-                            <StatCard title="Menunggu Dikirim" value={stats.waitingShip} color="bg-amber-50 text-amber-700 border-amber-200" icon="⏳" />
-                            <StatCard title="Sudah Dikirim" value={stats.shipped} color="bg-blue-50 text-blue-700 border-blue-200" icon="🚚" />
-                            <StatCard title="Dalam Perjalanan" value={stats.inTransit} color="bg-sky-50 text-sky-700 border-sky-200" icon="🛣️" />
-                            <StatCard title="Dibawa Kurir" value={stats.withCourier} color="bg-indigo-50 text-indigo-700 border-indigo-200" icon="🛵" />
-                            <StatCard title="Sudah Diterima" value={stats.delivered} color="bg-emerald-50 text-emerald-700 border-emerald-200" icon="✅" />
-                            <StatCard title="Bermasalah / Retur" value={stats.failedOrProblem} color="bg-red-50 text-red-700 border-red-200" icon="❌" />
+                            <StatCard title="Draft" value={stats.draft} color="bg-slate-100 text-slate-700 border-slate-200" icon="📝" />
+                            <StatCard title="Dikemas" value={stats.dikemas} color="bg-amber-50 text-amber-700 border-amber-200" icon="⏳" />
+                            <StatCard title="Dikirim" value={stats.dikirim} color="bg-sky-50 text-sky-700 border-sky-200" icon="🚚" />
+                            <StatCard title="Dibawa Kurir" value={stats.dibawaKurir} color="bg-indigo-50 text-indigo-700 border-indigo-200" icon="🛵" />
+                            <StatCard title="Berhasil Diterima" value={stats.berhasilDiterima} color="bg-emerald-50 text-emerald-700 border-emerald-200" icon="✅" />
+                            <StatCard title="Gagal Antar / Retur" value={stats.gagalRetur} color="bg-red-50 text-red-700 border-red-200" icon="❌" />
                         </div>
                     </div>
 

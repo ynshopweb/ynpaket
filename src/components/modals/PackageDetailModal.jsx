@@ -1,9 +1,9 @@
 import React from 'react';
 import StatusBadge from '../common/StatusBadge';
 
-function PackageDetailModal({ pkg, shopeeAccounts, helpers, onClose, onMarkCodPaid, onSyncStock, onUpdateTracking, copyToClipboard }) {
+function PackageDetailModal({ pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking, copyToClipboard }) {
             const acc = shopeeAccounts.find(a=>a.id === pkg.shopeeAccountId);
-            const hlp = helpers.find(h=>h.id === pkg.helperId);
+            const jasaCo = jasaCoList.find(j=>j.id === pkg.jasaCoId);
 
             return (
                 <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
@@ -24,8 +24,8 @@ function PackageDetailModal({ pkg, shopeeAccounts, helpers, onClose, onMarkCodPa
                                     <div className="font-bold text-slate-800">{acc ? acc.label : '-'}</div>
                                 </div>
                                 <div>
-                                    <span className="text-slate-400">Helper Checkout:</span>
-                                    <div className="font-bold text-slate-800">{hlp ? hlp.name : '-'}</div>
+                                    <span className="text-slate-400">Jasa CO:</span>
+                                    <div className="font-bold text-slate-800">{jasaCo ? jasaCo.nama : (pkg.financials.jasaCoNama || '-')}</div>
                                 </div>
                                 <div>
                                     <span className="text-slate-400">Status Pengiriman:</span>
@@ -130,7 +130,7 @@ function PackageDetailModal({ pkg, shopeeAccounts, helpers, onClose, onMarkCodPa
                                 </button>
                             ) : <div></div>}
 
-                            {pkg.shipping.status === 'Berhasil diterima' && !pkg.stockSynced && (
+                            {pkg.shipping.status === 'Berhasil Diterima' && !pkg.stockSynced && (
                                 <button onClick={onSyncStock} className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs px-4 py-2 rounded-xl">
                                     + Masukkan Barang ke Stok Rumah
                                 </button>

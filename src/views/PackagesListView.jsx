@@ -1,11 +1,12 @@
 import React from 'react';
 import StatusBadge from '../components/common/StatusBadge';
+import { PACKAGE_STATUS_FILTERS } from '../constants/packageStatus';
 
 function PackagesListView({ 
             packages, statusFilter, setStatusFilter, accountFilter, setAccountFilter, 
-            shopeeAccounts, helpers, onViewDetail, onMarkCodPaid, onSyncStock, onUpdateTracking, copyToClipboard 
+            shopeeAccounts, jasaCoList = [], onViewDetail, onMarkCodPaid, onSyncStock, onUpdateTracking, copyToClipboard 
         }) {
-            const statusOptions = ['Semua', 'Draft', 'Menunggu dikirim', 'Sudah dikirim', 'Dalam perjalanan', 'Transit', 'Dibawa kurir', 'Berhasil diterima', 'Gagal antar', 'Retur'];
+            const statusOptions = PACKAGE_STATUS_FILTERS;
 
             return (
                 <div className="space-y-4">
@@ -51,7 +52,7 @@ function PackagesListView({
                                 <thead className="bg-slate-50 text-slate-500 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
                                     <tr>
                                         <th className="p-3.5">ID Paket / Tgl</th>
-                                        <th className="p-3.5">Akun & Helper</th>
+                                        <th className="p-3.5">Akun & Jasa CO</th>
                                         <th className="p-3.5">Kurir & No. Resi</th>
                                         <th className="p-3.5">Produk Isi Paket</th>
                                         <th className="p-3.5">COD / Modal</th>
@@ -69,7 +70,7 @@ function PackagesListView({
                                     ) : (
                                         packages.map(pkg => {
                                             const acc = shopeeAccounts.find(a => a.id === pkg.shopeeAccountId);
-                                            const hlp = helpers.find(h => h.id === pkg.helperId);
+                                            const jasaCo = jasaCoList.find(j => j.id === pkg.jasaCoId);
                                             return (
                                                 <tr key={pkg.id} className="hover:bg-slate-50/80 transition-colors">
                                                     <td className="p-3.5">
@@ -79,7 +80,7 @@ function PackagesListView({
                                                     </td>
                                                     <td className="p-3.5">
                                                         <div className="text-xs font-medium text-slate-800">{acc ? acc.label : '-'}</div>
-                                                        <div className="text-xs text-slate-500">Dibantu: <span className="font-medium text-slate-700">{hlp ? hlp.name : '-'}</span></div>
+                                                        <div className="text-xs text-slate-500">Jasa CO: <span className="font-medium text-slate-700">{jasaCo ? jasaCo.nama : (pkg.financials?.jasaCoNama || '-')}</span></div>
                                                     </td>
                                                     <td className="p-3.5">
                                                         <div className="font-semibold text-slate-800">{pkg.shipping.courier}</div>
@@ -146,7 +147,7 @@ function PackagesListView({
                                                                 🔄 Track Resi
                                                             </button>
                                                         )}
-                                                        {pkg.shipping.status === 'Berhasil diterima' && (
+                                                        {pkg.shipping.status === 'Berhasil Diterima' && (
                                                             <button 
                                                                 onClick={() => onSyncStock(pkg)}
                                                                 disabled={pkg.stockSynced}

@@ -1,11 +1,11 @@
 import React from 'react';
 
-function ReportsView({ packages, shopeeAccounts, helpers }) {
+function ReportsView({ packages, shopeeAccounts, jasaCoList = [] }) {
             return (
                 <div className="space-y-6">
                     <div>
                         <h2 className="font-bold text-slate-900 text-xl">Laporan Rekap Belanja Stok</h2>
-                        <p className="text-slate-500 text-sm">Analisis pengeluaran modal per akun Shopee dan Helper.</p>
+                        <p className="text-slate-500 text-sm">Analisis pengeluaran modal per akun Shopee dan Jasa CO.</p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -31,18 +31,18 @@ function ReportsView({ packages, shopeeAccounts, helpers }) {
                             </div>
                         </div>
 
-                        {/* Report Per Helper */}
+                        {/* Report Per Jasa CO */}
                         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm">
-                            <h3 className="font-bold text-slate-800 text-base mb-3">Rekap per Helper Checkout</h3>
+                            <h3 className="font-bold text-slate-800 text-base mb-3">Rekap per Jasa CO</h3>
                             <div className="space-y-3">
-                                {helpers.map(hlp => {
-                                    const hlpPkgs = packages.filter(p => p.helperId === hlp.id);
-                                    const totalSpent = hlpPkgs.reduce((sum, p) => sum + p.financials.totalModal, 0);
+                                {jasaCoList.map(j => {
+                                    const jPkgs = packages.filter(p => p.jasaCoId === j.id);
+                                    const totalSpent = jPkgs.reduce((sum, p) => sum + p.financials.totalModal, 0);
                                     return (
-                                        <div key={hlp.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
+                                        <div key={j.id} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl text-xs">
                                             <div>
-                                                <div className="font-bold text-slate-800">{hlp.name}</div>
-                                                <div className="text-slate-400">{hlpPkgs.length} kali dibantu</div>
+                                                <div className="font-bold text-slate-800">{j.nama}</div>
+                                                <div className="text-slate-400">{jPkgs.length} kali dibantu</div>
                                             </div>
                                             <div className="font-bold text-slate-800 text-sm">
                                                 Rp{totalSpent.toLocaleString('id-ID')}

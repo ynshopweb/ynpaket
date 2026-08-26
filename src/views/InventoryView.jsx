@@ -1,7 +1,7 @@
 import React from 'react';
 
 function InventoryView({ products, packages, onOpenAddModal, onSyncStock, onEditProduct }) {
-            const pendingPackages = packages.filter(p => p.shipping.status === 'Berhasil diterima' && !p.stockSynced);
+            const pendingPackages = packages.filter(p => p.shipping.status === 'Berhasil Diterima' && !p.stockSynced);
 
             return (
                 <div className="space-y-6">

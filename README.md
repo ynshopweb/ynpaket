@@ -71,7 +71,7 @@ Semua data aplikasi tersimpan sebagai koleksi top-level berikut (dibuat otomatis
 | `tracking` | (riwayat, dibuat otomatis) | Riwayat pelacakan resi tiap kali di-update |
 | `cod` | COD Shopee | Status pembayaran Cash on Delivery per paket |
 | `produk` | Stok / Produk | Data inventaris |
-| `helperCheckout` | Helper Checkout | Mitra/orang yang bantu checkout |
+| `helperCheckout` | *(legacy, tidak dipakai UI lagi)* | Data Helper Checkout lama — sudah digabung ke `jasaCo`. Dokumen lama tetap ada di Firestore, hanya tidak lagi dibaca/ditulis aplikasi. |
 
 Karena setiap koleksi disinkronkan **realtime** (`onSnapshot`), perubahan data langsung terlihat di semua perangkat yang sedang login tanpa perlu refresh.
 
