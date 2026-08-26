@@ -1,14 +1,16 @@
 /**
- * Vercel Serverless Function: YN Paket -> Biteship
- * Required Vercel Environment Variable: BITESHIP_API_KEY
+ * Vercel Serverless Function: YN Paket -> Binderbyte
+ * Required Vercel Environment Variable: BINDERBYTE_API_KEY
  */
-const BASE_URL = 'https://api.biteship.com/v1';
+const BASE_URL = 'https://api.binderbyte.com/v1';
 
 function normalizeCourier(value) {
     const raw = String(value || '').trim().toLowerCase();
     const aliases = {
         'spx express': 'spx',
         'spx': 'spx',
+        'shopee express': 'spx',
+        'shopee': 'spx',
         'jne': 'jne',
         'j&t': 'jnt',
         'jnt': 'jnt',
@@ -19,33 +21,34 @@ function normalizeCourier(value) {
         'ninja xpress': 'ninja',
         'anteraja': 'anteraja',
         'id express': 'idexpress',
-        'idexpress': 'idexpress'
+        'idexpress': 'idexpress',
+        'pos': 'pos',
+        'tiki': 'tiki',
+        'wahana': 'wahana'
     };
     return aliases[raw] || raw.replace(/[^a-z0-9]/g, '');
 }
 
 function formatStatus(status) {
     const map = {
-        pending: 'Menunggu dikirim',
-        picked_up: 'Sudah dikirim',
-        in_transit: 'Dalam perjalanan',
-        on_delivery: 'Dibawa kurir',
         delivered: 'Berhasil diterima',
-        cancelled: 'Dibatalkan',
+        on-delivery: 'Dibawa kurir',
+        on process: 'Dalam perjalanan',
+        in transit: 'Dalam perjalanan',
+        pending: 'Menunggu dikirim',
         returned: 'Retur',
-        failure: 'Gagal antar',
-        exception: 'Bermasalah'
+        cancelled: 'Dibatalkan'
     };
-    const key = String(status || '').toLowerCase();
+    const key = String(status || '').toLowerCase().trim();
     return map[key] || status || 'Status tidak tersedia';
 }
 
 function normalizeHistory(history) {
     if (!Array.isArray(history)) return [];
     return history.map(item => ({
-        time: item.updated_at || item.timestamp || item.time || item.created_at || '',
-        location: item.location || item.city || '',
-        status: item.note || item.description || item.status || ''
+        time: item.date || item.timestamp || '',
+        location: item.location || '',
+        status: item.desc || item.description || ''
     }));
 }
 
@@ -54,11 +57,11 @@ export default async function handler(req, res) {
         return res.status(405).json({ success: false, error: 'Method tidak diizinkan.' });
     }
 
-    const apiKey = process.env.BITESHIP_API_KEY;
+    const apiKey = process.env.BINDERBYTE_API_KEY;
     if (!apiKey) {
         return res.status(503).json({
             success: false,
-            error: 'Tracking otomatis belum dikonfigurasi. Tambahkan BITESHIP_API_KEY di Environment Variables Vercel.'
+            error: 'Tracking otomatis belum dikonfigurasi. Tambahkan BINDERBYTE_API_KEY di Environment Variables Vercel.'
         });
     }
 
@@ -70,35 +73,46 @@ export default async function handler(req, res) {
     if (!courierCode) return res.status(400).json({ success: false, error: 'Kurir belum dipilih.' });
 
     try {
-        const url = `${BASE_URL}/trackings/${encodeURIComponent(resi)}?courier_code=${encodeURIComponent(courierCode)}`;
-        const response = await fetch(url, {
-            headers: {
-                Authorization: `Bearer ${apiKey}`,
-                Accept: 'application/json'
-            }
-        });
+        const url = `${BASE_URL}/track?api_key=${apiKey}&courier=${encodeURIComponent(courierCode)}&awb=${encodeURIComponent(resi)}`;
+        const response = await fetch(url);
 
         let payload = null;
         try { payload = await response.json(); } catch (_) {}
 
-        if (!response.ok) {
-            console.error('Biteship tracking error:', response.status, payload);
-            if (response.status === 404) return res.status(404).json({ success: false, error: 'Nomor resi tidak ditemukan.' });
-            if (response.status === 401 || response.status === 403) {
-                return res.status(502).json({ success: false, error: 'API key Biteship tidak valid atau tidak memiliki akses tracking.' });
+        // Tangani jika HTTP status / Binderbyte status bernilai tidak sukses (bukan 200)
+        if (!response.ok || payload?.status !== 200) {
+            console.error('Binderbyte tracking error:', response.status, payload);
+            
+            const statusCode = payload?.status || response.status;
+            const message = payload?.message || '';
+
+            if (statusCode === 400 || statusCode === 404 || message.toLowerCase().includes('not found')) {
+                return res.status(404).json({ success: false, error: 'Nomor resi tidak ditemukan atau kurir tidak sesuai.' });
             }
-            return res.status(502).json({ success: false, error: 'Server tracking sedang mengalami gangguan.' });
+            if (statusCode === 401 || statusCode === 403) {
+                return res.status(502).json({ success: false, error: 'API key Binderbyte tidak valid atau kuota telah habis.' });
+            }
+            return res.status(502).json({ success: false, error: message || 'Server tracking sedang mengalami gangguan.' });
         }
 
-        const history = normalizeHistory(payload?.history);
-        const last = history[history.length - 1];
+        const data = payload.data || {};
+        const summary = data.summary || {};
+        const rawHistory = data.history || [];
+        const history = normalizeHistory(rawHistory);
+        const last = history[0]; // Binderbyte mengurutkan history terbaru di indeks paling atas [0]
 
         return res.status(200).json({
             success: true,
-            provider: 'biteship',
-            currentStatus: formatStatus(payload?.status || payload?.tracking?.status || payload?.data?.status),
-            lastLocation: payload?.last_location || payload?.location || last?.location || '',
-            lastUpdate: payload?.updated_at || payload?.last_update || last?.time || new Date().toISOString(),
+            provider: 'binderbyte',
+            currentStatus: formatStatus(summary.status),
+            lastLocation: last?.location || summary.destination || '',
+            lastUpdate: summary.date || last?.time || new Date().toISOString(),
+            detail: {
+                shipper: data.detail?.shipper || '',
+                receiver: data.detail?.receiver || '',
+                origin: summary.origin || '',
+                destination: summary.destination || ''
+            },
             history
         });
     } catch (error) {
