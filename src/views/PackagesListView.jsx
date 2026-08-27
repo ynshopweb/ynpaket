@@ -4,7 +4,7 @@ import { PACKAGE_STATUS_FILTERS } from '../constants/packageStatus';
 
 function PackagesListView({ 
             packages, statusFilter, setStatusFilter, accountFilter, setAccountFilter, 
-            shopeeAccounts, jasaCoList = [], onViewDetail, onMarkCodPaid, onSyncStock, onUpdateTracking, onDeletePackage, copyToClipboard 
+            shopeeAccounts, jasaCoList = [], onViewDetail, onMarkCodPaid, onSyncStock, onUpdateTracking, onDeletePackage, onEditPackage, copyToClipboard 
         }) {
             const statusOptions = PACKAGE_STATUS_FILTERS;
 
@@ -156,6 +156,15 @@ function PackagesListView({
                                                                 }`}
                                                             >
                                                                 {pkg.stockSynced ? '✓ Stok Synced' : '+ Masuk Stok'}
+                                                            </button>
+                                                        )}
+                                                        {onEditPackage && (
+                                                            <button 
+                                                                onClick={() => onEditPackage(pkg)}
+                                                                className="w-full text-xs bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 font-medium py-1 px-2.5 rounded-lg transition-colors"
+                                                                title="Edit data paket ini"
+                                                            >
+                                                                ✏️ Edit
                                                             </button>
                                                         )}
                                                         {onDeletePackage && (

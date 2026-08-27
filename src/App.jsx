@@ -9,6 +9,7 @@ import ReportsView from './views/ReportsView';
 import SettingsView from './views/SettingsView';
 import MobileNavItem from './components/layout/MobileNavItem';
 import NewPurchaseModal from './components/modals/NewPurchaseModal';
+import EditPackageModal from './components/modals/EditPackageModal';
 import PackageDetailModal from './components/modals/PackageDetailModal';
 import AddAccountModal from './components/modals/AddAccountModal';
 import AddProductModal from './components/modals/AddProductModal';
@@ -131,6 +132,7 @@ function App() {
             const [editingProduct, setEditingProduct] = useState(null); // produk yang sedang diedit
             const [showSyncStockModal, setShowSyncStockModal] = useState(null); // package object
             const [showDeleteModal, setShowDeleteModal] = useState(null); // package object
+            const [showEditModal, setShowEditModal] = useState(null); // package object
             const [toast, setToast] = useState(null);
 
             // API key tracking TIDAK disimpan di browser. Hanya provider/base URL.
@@ -271,6 +273,21 @@ function App() {
                 } catch (err) {
                     console.error(err);
                     showToast('Gagal menghapus paket.', 'error');
+                }
+            };
+
+            // Simpan koreksi data paket (resi salah ketik, salah akun/jasa CO, salah
+            // qty/harga barang, dll). Hanya field yang dikirim dari form Edit Paket
+            // yang diubah — status pengiriman, riwayat tracking & stockSynced TIDAK
+            // ikut tersentuh supaya histori paket tetap konsisten.
+            const handleEditPackage = async (pkgId, updatedFields) => {
+                try {
+                    await updateItem(COLLECTIONS.paket, pkgId, updatedFields);
+                    setShowEditModal(null);
+                    showToast(`Paket ${pkgId} berhasil diperbarui.`);
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menyimpan perubahan paket.', 'error');
                 }
             };
 
@@ -628,6 +645,7 @@ function App() {
                                     onSyncStock={(pkg) => setShowSyncStockModal(pkg)}
                                     onUpdateTracking={handleUpdateTracking}
                                     onDeletePackage={(pkg) => setShowDeleteModal(pkg)}
+                                    onEditPackage={(pkg) => setShowEditModal(pkg)}
                                     copyToClipboard={copyToClipboard}
                                 />
                             )}
@@ -815,6 +833,7 @@ function App() {
                             }}
                             onUpdateTracking={() => handleUpdateTracking(showDetailModal)}
                             onDeletePackage={(pkg) => setShowDeleteModal(pkg)}
+                            onEditPackage={(pkg) => { setShowEditModal(pkg); setShowDetailModal(null); }}
                             onManualStatusChange={async (payload) => {
                                 await handleManualStatusChange(showDetailModal, payload);
                                 setShowDetailModal(prev => prev ? ({
@@ -851,6 +870,25 @@ function App() {
                             pkg={showDeleteModal}
                             onClose={() => setShowDeleteModal(null)}
                             onConfirm={() => handleDeletePackage(showDeleteModal)}
+                        />
+                    )}
+
+                    {/* Edit Package Modal */}
+                    {showEditModal && (
+                        <EditPackageModal
+                            pkg={showEditModal}
+                            shopeeAccounts={shopeeAccounts}
+                            products={products}
+                            jasaCoList={masterData.jasaCo}
+                            onClose={() => setShowEditModal(null)}
+                            onSave={(updatedFields) => handleEditPackage(showEditModal.id, updatedFields)}
+                            onManualStatusChange={async (payload) => {
+                                await handleManualStatusChange(showEditModal, payload);
+                                setShowEditModal(prev => prev ? ({
+                                    ...prev,
+                                    shipping: { ...prev.shipping, status: payload.status, statusSource: 'manual' }
+                                }) : prev);
+                            }}
                         />
                     )}
 

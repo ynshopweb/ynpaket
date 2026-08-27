@@ -4,7 +4,7 @@ import { PACKAGE_STATUSES } from '../../constants/packageStatus';
 
 function PackageDetailModal({
             pkg, shopeeAccounts, jasaCoList = [], onClose, onMarkCodPaid, onSyncStock, onUpdateTracking,
-            onDeletePackage, onManualStatusChange, onApplyPendingApiStatus, onDismissPendingApiStatus,
+            onDeletePackage, onEditPackage, onManualStatusChange, onApplyPendingApiStatus, onDismissPendingApiStatus,
             copyToClipboard
         }) {
             const acc = shopeeAccounts.find(a=>a.id === pkg.shopeeAccountId);
@@ -222,13 +222,22 @@ function PackageDetailModal({
                         </div>
 
                         <div className="p-4 bg-slate-50 border-t flex justify-between items-center gap-2">
-                            <button
-                                onClick={() => onDeletePackage && onDeletePackage(pkg)}
-                                className="text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold text-xs px-3.5 py-2 rounded-xl"
-                                title="Hapus paket ini beserta data terkaitnya"
-                            >
-                                🗑️ Hapus Paket
-                            </button>
+                            <div className="flex items-center gap-2">
+                                <button
+                                    onClick={() => onEditPackage && onEditPackage(pkg)}
+                                    className="text-slate-700 hover:bg-slate-100 border border-slate-300 font-bold text-xs px-3.5 py-2 rounded-xl"
+                                    title="Edit data paket ini (mis. koreksi nomor resi)"
+                                >
+                                    ✏️ Edit Paket
+                                </button>
+                                <button
+                                    onClick={() => onDeletePackage && onDeletePackage(pkg)}
+                                    className="text-rose-600 hover:bg-rose-50 border border-rose-200 font-bold text-xs px-3.5 py-2 rounded-xl"
+                                    title="Hapus paket ini beserta data terkaitnya"
+                                >
+                                    🗑️ Hapus Paket
+                                </button>
+                            </div>
 
                             <div className="flex items-center gap-2 ml-auto">
                                 {pkg.financials.metodePembayaran === 'COD' && pkg.financials.codStatus !== 'Sudah dibayar' && (

@@ -135,7 +135,7 @@ export async function createPembelianLengkap(pkg) {
   );
 
   // 4. Jika metode pembayaran COD, buat catatan COD
-  if (pkg.financials?.paymentMethod === 'COD') {
+  if (pkg.financials?.metodePembayaran === 'COD') {
     await setItem(COLLECTIONS.cod, paketId, {
       paketId,
       shopeeOrderId: pkg.shopeeOrderId,
