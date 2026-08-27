@@ -2,8 +2,28 @@ import React, { useState } from 'react';
 
 function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, onSave }) {
             const [checkoutDate, setCheckoutDate] = useState(new Date().toISOString().substring(0, 10));
-            const [shopeeAccountId, setShopeeAccountId] = useState(shopeeAccounts[0]?.id || '');
             const [shopeeOrderId, setShopeeOrderId] = useState('');
+
+            // Paket hanya boleh memakai SALAH SATU sumber checkout:
+            // - 'akun'   -> pakai Akun Shopee sendiri
+            // - 'jasaco' -> checkout lewat Jasa CO (titip beli/open order)
+            // Keduanya tidak pernah tampil/terisi bersamaan.
+            const [sumberCheckout, setSumberCheckout] = useState(shopeeAccounts.length > 0 ? 'akun' : 'jasaco');
+            const [shopeeAccountId, setShopeeAccountId] = useState(shopeeAccounts[0]?.id || '');
+            const [jasaCoId, setJasaCoId] = useState('');
+
+            // Saat sumber checkout diganti, kosongkan field milik mode yang tidak
+            // sedang aktif supaya tidak ada data "nyangkut" dari mode sebelumnya.
+            React.useEffect(() => {
+                if (sumberCheckout === 'akun') {
+                    setJasaCoId('');
+                    setFeeJasaCo(0);
+                    setFeeJasaCoTouched(false);
+                } else {
+                    setShopeeAccountId('');
+                }
+                // eslint-disable-next-line react-hooks/exhaustive-deps
+            }, [sumberCheckout]);
             
             // Recipient Address
             const [recipientName, setRecipientName] = useState('Gudang Utama (Rumah)');
@@ -19,24 +39,8 @@ function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, 
                 { productId: '', name: '', sku: '', variant: '', qty: 1, unitPrice: 0, subtotal: 0 }
             ]);
 
-            // Akun CO yang sedang dipilih
-            const selectedAccount = shopeeAccounts.find(a => a.id === shopeeAccountId);
-
-            // Jasa CO untuk transaksi ini. Default mengikuti Jasa CO yang terkait
-            // dengan Akun Shopee terpilih, tapi tetap bisa dipilih manual per transaksi
-            // (satu master data "Jasa CO" ini menggantikan Helper Checkout/Helper CO).
-            const [jasaCoId, setJasaCoId] = useState(selectedAccount?.jasaCoId || '');
-            const [jasaCoTouched, setJasaCoTouched] = useState(false);
-
-            React.useEffect(() => {
-                if (!jasaCoTouched) {
-                    setJasaCoId(selectedAccount?.jasaCoId || '');
-                }
-                // eslint-disable-next-line react-hooks/exhaustive-deps
-            }, [shopeeAccountId]);
-
             const selectedJasaCo = jasaCoList.find(j => j.id === jasaCoId);
-            const linkedJasaCoNama = selectedJasaCo?.nama || '';
+            const linkedJasaCoNama = sumberCheckout === 'jasaco' ? (selectedJasaCo?.nama || '') : '';
 
             // Financials
             const [voucherShopee, setVoucherShopee] = useState(''); // teks informasi saja, tidak dihitung
@@ -47,11 +51,11 @@ function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, 
             const [feeJasaCo, setFeeJasaCo] = useState(0);
             const [feeJasaCoTouched, setFeeJasaCoTouched] = useState(false);
 
-            // Saat Jasa CO berganti (baik otomatis ikut Akun CO, maupun dipilih manual),
+            // Saat Jasa CO berganti (hanya relevan saat sumber checkout = 'jasaco'),
             // auto-isi Fee Jasa CO dari biaya default-nya, kecuali sudah diedit manual
             // oleh user khusus untuk transaksi ini.
             React.useEffect(() => {
-                if (!feeJasaCoTouched) {
+                if (sumberCheckout === 'jasaco' && !feeJasaCoTouched) {
                     setFeeJasaCo(selectedJasaCo?.biaya || 0);
                 }
                 // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,8 +109,8 @@ function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, 
                     id: `YN-${new Date().toISOString().substring(0,10).replace(/-/g,'')}-${Math.floor(100 + Math.random() * 900)}`,
                     shopeeOrderId: shopeeOrderId || 'PENDING-ID',
                     checkoutDate,
-                    shopeeAccountId,
-                    jasaCoId: jasaCoId || null,
+                    shopeeAccountId: sumberCheckout === 'akun' ? (shopeeAccountId || null) : null,
+                    jasaCoId: sumberCheckout === 'jasaco' ? (jasaCoId || null) : null,
                     recipient: {
                         name: recipientName,
                         phone: recipientPhone,
@@ -159,22 +163,41 @@ function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, 
                                         <label className="block font-medium text-slate-700 mb-1">Tanggal Checkout</label>
                                         <input type="date" value={checkoutDate} onChange={e=>setCheckoutDate(e.target.value)} className="w-full border rounded-lg p-2" required />
                                     </div>
-                                    <div>
-                                        <label className="block font-medium text-slate-700 mb-1">Akun Shopee</label>
-                                        <select value={shopeeAccountId} onChange={e=>setShopeeAccountId(e.target.value)} className="w-full border rounded-lg p-2">
-                                            {shopeeAccounts.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
-                                        </select>
-                                    </div>
-                                    <div>
-                                        <label className="block font-medium text-slate-700 mb-1">Jasa CO</label>
-                                        <select
-                                            value={jasaCoId}
-                                            onChange={e=>{ setJasaCoId(e.target.value); setJasaCoTouched(true); }}
-                                            className="w-full border rounded-lg p-2"
-                                        >
-                                            <option value="">— Tidak ada —</option>
-                                            {jasaCoList.map(j => <option key={j.id} value={j.id}>{j.nama}</option>)}
-                                        </select>
+                                    <div className="md:col-span-2">
+                                        <label className="block font-medium text-slate-700 mb-1">Sumber Checkout</label>
+                                        <div className="flex rounded-lg border overflow-hidden">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSumberCheckout('akun')}
+                                                disabled={shopeeAccounts.length === 0}
+                                                className={`flex-1 px-2 py-1.5 font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${sumberCheckout === 'akun' ? 'bg-rose-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                            >
+                                                🏪 Akun Shopee Sendiri
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSumberCheckout('jasaco')}
+                                                disabled={jasaCoList.length === 0}
+                                                className={`flex-1 px-2 py-1.5 font-semibold transition-colors border-l disabled:opacity-40 disabled:cursor-not-allowed ${sumberCheckout === 'jasaco' ? 'bg-rose-500 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+                                            >
+                                                🤝 Pakai Jasa CO
+                                            </button>
+                                        </div>
+
+                                        <div className="mt-2">
+                                            {sumberCheckout === 'akun' ? (
+                                                <select value={shopeeAccountId} onChange={e=>setShopeeAccountId(e.target.value)} className="w-full border rounded-lg p-2" required>
+                                                    <option value="">— Pilih Akun Shopee —</option>
+                                                    {shopeeAccounts.map(a => <option key={a.id} value={a.id}>{a.label}</option>)}
+                                                </select>
+                                            ) : (
+                                                <select value={jasaCoId} onChange={e=>{ setJasaCoId(e.target.value); setFeeJasaCoTouched(false); }} className="w-full border rounded-lg p-2" required>
+                                                    <option value="">— Pilih Jasa CO —</option>
+                                                    {jasaCoList.map(j => <option key={j.id} value={j.id}>{j.nama}</option>)}
+                                                </select>
+                                            )}
+                                        </div>
+                                        <p className="text-[10px] text-slate-400 mt-1">Paket hanya memakai salah satu: Akun Shopee sendiri, atau lewat Jasa CO — tidak bisa keduanya sekaligus.</p>
                                     </div>
                                     <div>
                                         <label className="block font-medium text-slate-700 mb-1">No. Pesanan Shopee</label>
@@ -284,23 +307,25 @@ function NewPurchaseModal({ shopeeAccounts, products, jasaCoList = [], onClose, 
                                     )}
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                    <div>
-                                        <label className="block font-medium text-slate-700 mb-1">
-                                            Fee Jasa CO (Rp) {linkedJasaCoNama && <span className="text-rose-500 font-normal">— {linkedJasaCoNama}</span>}
-                                        </label>
-                                        <input
-                                            type="number"
-                                            value={feeJasaCo}
-                                            onChange={e => { setFeeJasaCo(e.target.value); setFeeJasaCoTouched(true); }}
-                                            className="w-full border rounded p-1.5"
-                                        />
-                                        {selectedJasaCo?.biaya > 0 && (
-                                            <p className="text-[10px] text-slate-400 mt-1">
-                                                Fee default: Rp{Number(selectedJasaCo.biaya).toLocaleString('id-ID')} — bisa diubah khusus untuk transaksi ini saja.
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="md:col-span-2 bg-slate-900 text-white p-2.5 rounded-xl flex flex-col justify-center">
+                                    {sumberCheckout === 'jasaco' && (
+                                        <div>
+                                            <label className="block font-medium text-slate-700 mb-1">
+                                                Fee Jasa CO (Rp) {linkedJasaCoNama && <span className="text-rose-500 font-normal">— {linkedJasaCoNama}</span>}
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={feeJasaCo}
+                                                onChange={e => { setFeeJasaCo(e.target.value); setFeeJasaCoTouched(true); }}
+                                                className="w-full border rounded p-1.5"
+                                            />
+                                            {selectedJasaCo?.biaya > 0 && (
+                                                <p className="text-[10px] text-slate-400 mt-1">
+                                                    Fee default: Rp{Number(selectedJasaCo.biaya).toLocaleString('id-ID')} — bisa diubah khusus untuk transaksi ini saja.
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                    <div className={`${sumberCheckout === 'jasaco' ? 'md:col-span-2' : 'md:col-span-3'} bg-slate-900 text-white p-2.5 rounded-xl flex flex-col justify-center`}>
                                         <span className="text-[10px] text-slate-400">Total Modal (Total Harga Pesanan + Fee Jasa CO):</span>
                                         <span className="text-base font-bold text-rose-400">Rp{totalModal.toLocaleString('id-ID')}</span>
                                     </div>
