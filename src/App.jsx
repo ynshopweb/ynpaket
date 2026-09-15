@@ -178,11 +178,31 @@ function App() {
                 const totalModalKeseluruhan = packages.reduce((acc, p) => acc + (p.financials.totalModal || 0), 0);
                 const totalFeeJasaCo = packages.reduce((acc, p) => acc + (p.financials.feeJasaCo || 0), 0);
                 
-                // COD Stats
+                // COD Stats — field lama (codUnpaid/codPaid/codProblem) DIPERTAHANKAN
+                // apa adanya untuk kompatibilitas (masih dipakai badge & banner lama).
                 const codPackages = packages.filter(p => p.financials.metodePembayaran === 'COD');
                 const codUnpaid = codPackages.filter(p => p.financials.codStatus === 'Belum dibayar').reduce((acc, p) => acc + p.financials.totalModal, 0);
                 const codPaid = codPackages.filter(p => p.financials.codStatus === 'Sudah dibayar').reduce((acc, p) => acc + p.financials.totalModal, 0);
                 const codProblem = codPackages.filter(p => p.financials.codStatus === 'Bermasalah').reduce((acc, p) => acc + p.financials.totalModal, 0);
+
+                // BARU: pisahkan status COD berdasarkan status PAKET, supaya jelas mana
+                // yang masih wajar "belum dibayar" (masih dikirim) vs yang SUDAH SAMPAI
+                // tapi belum disetor (ini yang bikin terasa "menumpuk" kalau dicampur
+                // jadi satu angka) vs yang gagal/retur (uang COD tidak akan pernah masuk,
+                // jadi tidak boleh terus dihitung sebagai piutang aktif).
+                const codBelumSampai = codPackages.filter(p =>
+                    p.financials.codStatus === 'Belum dibayar' &&
+                    !['Berhasil Diterima', 'Gagal Antar', 'Retur'].includes(p.shipping.status)
+                );
+                const codPerluDisetor = codPackages.filter(p =>
+                    p.financials.codStatus === 'Belum dibayar' && p.shipping.status === 'Berhasil Diterima'
+                );
+                const codDibatalkan = codPackages.filter(p =>
+                    p.financials.codStatus === 'Belum dibayar' && ['Gagal Antar', 'Retur'].includes(p.shipping.status)
+                );
+                const codBelumSampaiTotal = codBelumSampai.reduce((acc, p) => acc + p.financials.totalModal, 0);
+                const codPerluDisetorTotal = codPerluDisetor.reduce((acc, p) => acc + p.financials.totalModal, 0);
+                const codDibatalkanTotal = codDibatalkan.reduce((acc, p) => acc + p.financials.totalModal, 0);
 
                 // Warnings
                 const missingResi = packages.filter(p => !p.shipping.resi && p.shipping.status !== 'Draft');
@@ -192,6 +212,10 @@ function App() {
                     totalPackages, draft, dikemas, dikirim, dibawaKurir, berhasilDiterima, gagalRetur,
                     totalModal: totalModalKeseluruhan, totalFeeJasaCo,
                     codUnpaid, codPaid, codProblem,
+                    codBelumSampaiTotal, codPerluDisetorTotal, codDibatalkanTotal,
+                    codBelumSampaiCount: codBelumSampai.length,
+                    codPerluDisetorCount: codPerluDisetor.length,
+                    codDibatalkanCount: codDibatalkan.length,
                     missingResiCount: missingResi.length,
                     pendingStockSyncCount: pendingStockSync.length
                 };
@@ -325,6 +349,24 @@ function App() {
 
                     const lastUpdate = result.lastUpdate || checkedAt;
                     const isManualLocked = pkg.shipping.statusSource === 'manual';
+
+                    // API berhasil dihubungi TAPI teks status kurir tidak bisa dipetakan ke
+                    // salah satu dari 7 status baku (currentStatus === null). JANGAN PERNAH
+                    // menulis status mentah/tidak baku ke database. Riwayat & lokasi tetap
+                    // diperbarui supaya tetap berguna, status paket dibiarkan apa adanya.
+                    if (!result.currentStatus) {
+                        await updateItem(COLLECTIONS.paket, pkg.id, {
+                            'shipping.lastLocation': result.lastLocation || pkg.shipping.lastLocation || '',
+                            'shipping.lastUpdate': lastUpdate,
+                            'shipping.lastTrackingCheck': checkedAt,
+                            trackingHistory: result.history || []
+                        });
+                        showToast(
+                            `Info kurir terbaru: "${result.rawStatus || '(tidak ada info)'}" — belum bisa dipetakan otomatis ke status baku. Status paket tidak berubah, cek riwayat tracking atau ubah manual jika perlu.`,
+                            'info'
+                        );
+                        return;
+                    }
 
                     if (isManualLocked) {
                         // Status paket ini pernah dikoreksi manual — JANGAN ditimpa otomatis.
@@ -502,7 +544,7 @@ function App() {
                             <nav className="space-y-1">
                                 <NavItem icon="📊" label="Dashboard" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
                                 <NavItem icon="📦" label="Semua Paket" badge={packages.length} active={activeTab === 'packages'} onClick={() => setActiveTab('packages')} />
-                                <NavItem icon="💵" label="COD Shopee" badge={packages.filter(p=>p.financials.metodePembayaran==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
+                                <NavItem icon="💵" label="COD Shopee" badge={stats.codPerluDisetorCount} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
                                 <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
                                 <div className="pt-4 pb-1">
                                     <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Master Data</p>
@@ -587,8 +629,8 @@ function App() {
                         {/* Page Content Renderer */}
                         <div className="p-4 md:p-6 max-w-7xl mx-auto w-full space-y-6">
                             {/* Warning Banner Alerts */}
-                            {(stats.missingResiCount > 0 || stats.pendingStockSyncCount > 0 || stats.codUnpaid > 0) && (
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            {(stats.missingResiCount > 0 || stats.pendingStockSyncCount > 0 || stats.codPerluDisetorCount > 0 || stats.codBelumSampaiTotal > 0) && (
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                     {stats.missingResiCount > 0 && (
                                         <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-3 text-xs flex items-center space-x-2">
                                             <span className="text-base">⚠️</span>
@@ -607,12 +649,24 @@ function App() {
                                             </div>
                                         </div>
                                     )}
-                                    {stats.codUnpaid > 0 && (
+                                    {/* Paling urgent: paket SUDAH SAMPAI tapi COD belum disetor.
+                                        Dipisah dari "COD masih dikirim" supaya angka yang menumpuk
+                                        di dashboard benar-benar yang butuh tindakan sekarang. */}
+                                    {stats.codPerluDisetorCount > 0 && (
                                         <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-3 text-xs flex items-center space-x-2">
+                                            <span className="text-base">🚨</span>
+                                            <div>
+                                                <strong className="font-semibold">{stats.codPerluDisetorCount} Paket COD Perlu Disetor: Rp{stats.codPerluDisetorTotal.toLocaleString('id-ID')}</strong>
+                                                <p className="text-rose-600">Sudah sampai ke pembeli, segera tandai lunas setelah disetor.</p>
+                                            </div>
+                                        </div>
+                                    )}
+                                    {stats.codBelumSampaiTotal > 0 && (
+                                        <div className="bg-slate-50 border border-slate-200 text-slate-700 rounded-xl p-3 text-xs flex items-center space-x-2">
                                             <span className="text-base">💰</span>
                                             <div>
-                                                <strong className="font-semibold">COD Belum Dibayar: Rp{stats.codUnpaid.toLocaleString('id-ID')}</strong>
-                                                <p className="text-rose-600">Siapkan dana tunai/transfer COD.</p>
+                                                <strong className="font-semibold">COD Masih Dikirim: Rp{stats.codBelumSampaiTotal.toLocaleString('id-ID')}</strong>
+                                                <p className="text-slate-500">Belum sampai ke pembeli — siapkan dana saat kurir datang.</p>
                                             </div>
                                         </div>
                                     )}
@@ -746,7 +800,7 @@ function App() {
                                     <NavItem icon="📦" label="Paket" badge={packages.length} active={activeTab === 'packages'} onClick={() => goToTab('packages')} />
                                     <NavItem icon="➕" label="Pembelian Baru" onClick={() => { setMobileMenuOpen(false); setShowNewPurchaseModal(true); }} />
                                     <NavItem icon="🚚" label="Tracking" active={activeTab === 'packages'} onClick={() => goToTab('packages')} />
-                                    <NavItem icon="💵" label="COD" badge={packages.filter(p=>p.financials.metodePembayaran==='COD' && p.financials.codStatus==='Belum dibayar').length} badgeColor="bg-amber-100 text-amber-700" active={activeTab === 'cod'} onClick={() => goToTab('cod')} />
+                                    <NavItem icon="💵" label="COD" badge={stats.codPerluDisetorCount} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'cod'} onClick={() => goToTab('cod')} />
                                     <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => goToTab('inventory')} />
                                     <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => goToTab('accounts')} />
 

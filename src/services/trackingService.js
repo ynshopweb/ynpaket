@@ -31,7 +31,14 @@ const trackingService = {
         return {
             success: true,
             provider: data.provider || 'biteship',
-            currentStatus: data.currentStatus || 'Status tidak tersedia',
+            // PENTING: jangan pakai fallback string di sini. currentStatus harus
+            // tetap null apa adanya kalau backend tidak bisa memetakan status ke
+            // salah satu dari 7 status baku — App.jsx mengandalkan nilai null ini
+            // untuk MEMUTUSKAN TIDAK menimpa status paket. Kalau di-fallback jadi
+            // string ("Status tidak tersedia"), App.jsx akan mengira ini status
+            // valid dan menuliskannya ke database (mencemari status baku).
+            currentStatus: data.currentStatus || null,
+            rawStatus: data.rawStatus || '', // teks asli dari kurir, untuk ditampilkan ke user
             lastLocation: data.lastLocation || '',
             lastUpdate: data.lastUpdate || '',
             history: Array.isArray(data.history) ? data.history : []

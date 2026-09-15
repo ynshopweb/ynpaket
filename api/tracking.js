@@ -80,18 +80,47 @@ function normalizeCourier(value) {
     return aliases[raw] || raw.replace(/[^a-z0-9]/g, '');
 }
 
-function formatStatus(status) {
-    const map = {
-        delivered: 'Berhasil Diterima',
-        'on-delivery': 'Dibawa Kurir',
-        'on process': 'Dikirim',
-        'in transit': 'Dikirim',
-        pending: 'Dikemas',
-        returned: 'Retur',
-        cancelled: 'Retur'
-    };
-    const key = String(status || '').toLowerCase().trim();
-    return map[key] || status || 'Status tidak tersedia';
+// Kata kunci deteksi status dari TEKS ASLI kurir (summary.status + deskripsi
+// riwayat terakhir dari Binderbyte, yang isinya bahasa Indonesia seperti
+// "SEDANG DIANTAR", "TELAH TIBA", "TERKIRIM", dst). Sebelumnya kode ini hanya
+// mencocokkan kata Inggris ('on process', 'in transit', dst) yang HAMPIR TIDAK
+// PERNAH cocok dengan output asli Binderbyte -> akibatnya status paket di
+// aplikasi cuma pernah kedeteksi otomatis 2 kondisi saja (Dikirim di awal,
+// lalu langsung loncat ke Berhasil Diterima saat "DELIVERED"), tanpa pernah
+// singgah ke Dikemas/Dibawa Kurir. Fungsi di bawah memetakan ke SALAH SATU
+// dari 7 status baku (lihat src/constants/packageStatus.js), atau null kalau
+// benar-benar tidak bisa dipetakan (supaya status di database tidak pernah
+// tercemar teks mentah/tidak baku).
+const STATUS_KEYWORDS = [
+    // Urutan penting: dicek dari yang paling final/spesifik dulu.
+    { status: 'Retur', keywords: ['RETUR', 'RETURN', 'DIKEMBALIKAN KE PENGIRIM', 'KEMBALI KE PENGIRIM', 'REJECT'] },
+    { status: 'Gagal Antar', keywords: ['GAGAL', 'UNDELIVERED', 'TIDAK DITEMUKAN', 'ALAMAT TIDAK LENGKAP', 'PENERIMA TIDAK ADA', 'EXCEPTION', 'DITOLAK', 'CANCEL', 'DIBATALKAN'] },
+    { status: 'Berhasil Diterima', keywords: ['DELIVERED', 'TERKIRIM', 'DITERIMA OLEH', 'PAKET DITERIMA', 'SUKSES DITERIMA'] },
+    { status: 'Dibawa Kurir', keywords: ['SEDANG DIANTAR', 'OUT FOR DELIVERY', 'ON DELIVERY', 'DALAM PENGANTARAN', 'KURIR MENUJU', 'DIANTARKAN OLEH KURIR', 'PROSES ANTAR'] },
+    { status: 'Dikirim', keywords: ['TRANSIT', 'DALAM PERJALANAN', 'TELAH BERANGKAT', 'TELAH TIBA', 'MANIFEST', 'DIKIRIM DARI', 'PICKUP', 'DIAMBIL KURIR', 'IN TRANSIT', 'ON PROCESS', 'PROSES KIRIM'] },
+    { status: 'Dikemas', keywords: ['PENDING', 'MENUNGGU', 'BOOKING', 'LABEL DIBUAT', 'DROP OFF', 'DIPROSES PENGIRIM'] },
+];
+
+/**
+ * Tentukan status baku (salah satu dari 7 status resmi) dari data mentah
+ * Binderbyte. Menggabungkan `summary.status` (ringkasan) dan deskripsi
+ * riwayat TERBARU (paling kaya informasi) sebagai bahan pencocokan kata kunci.
+ * Mengembalikan `null` jika tidak ada kata kunci yang cocok sama sekali —
+ * pemanggil (frontend) TIDAK BOLEH menimpa status paket dengan null ini,
+ * supaya field status di Firestore tetap selalu salah satu dari 7 status baku.
+ */
+function determinePackageStatus(summary, history) {
+    const latestDesc = Array.isArray(history) && history.length > 0
+        ? (history[0]?.desc || history[0]?.description || '')
+        : '';
+    const combinedText = `${summary?.status || ''} ${latestDesc}`.toUpperCase();
+
+    for (const rule of STATUS_KEYWORDS) {
+        if (rule.keywords.some(kw => combinedText.includes(kw))) {
+            return rule.status;
+        }
+    }
+    return null; // Tidak bisa dipetakan -> biarkan status paket tidak berubah
 }
 
 function normalizeHistory(history) {
@@ -140,11 +169,15 @@ async function fetchFromBinderbyte(apiKey, courierCode, resi) {
     const rawHistory = data.history || [];
     const history = normalizeHistory(rawHistory);
     const last = history[0];
+    const mappedStatus = determinePackageStatus(summary, rawHistory);
 
     return {
         success: true,
         provider: 'binderbyte',
-        currentStatus: formatStatus(summary.status),
+        // currentStatus: salah satu dari 7 status baku, ATAU null kalau tidak
+        // bisa dipetakan (frontend WAJIB tidak menimpa status paket saat null).
+        currentStatus: mappedStatus,
+        rawStatus: summary.status || last?.status || '', // teks asli dari kurir, untuk transparansi/debug
         lastLocation: last?.location || summary.destination || '',
         lastUpdate: summary.date || last?.time || new Date().toISOString(),
         detail: {

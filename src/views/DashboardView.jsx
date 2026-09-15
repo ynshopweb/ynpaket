@@ -46,7 +46,8 @@ function DashboardView({ stats, packages, shopeeAccounts, onViewDetail, onQuickN
                         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                             <FinanceCard label="Total Modal Belanja" amount={`Rp${stats.totalModal.toLocaleString('id-ID')}`} subtitle="Total Harga Pesanan + Fee Jasa CO" bg="bg-emerald-500" icon="💰" />
                             <FinanceCard label="Total Fee Jasa CO" amount={`Rp${stats.totalFeeJasaCo.toLocaleString('id-ID')}`} subtitle="Akumulasi fee jasa checkout" bg="bg-blue-500" icon="🧾" />
-                            <FinanceCard label="COD Belum Dibayar" amount={`Rp${stats.codUnpaid.toLocaleString('id-ID')}`} subtitle="Perlu siapkan uang tunai" bg="bg-amber-500" icon="💵" />
+                            <FinanceCard label="COD Masih Dikirim" amount={`Rp${stats.codBelumSampaiTotal.toLocaleString('id-ID')}`} subtitle="Belum sampai ke pembeli" bg="bg-slate-500" icon="🚚" />
+                            <FinanceCard label="🚨 COD Perlu Disetor" amount={`Rp${stats.codPerluDisetorTotal.toLocaleString('id-ID')}`} subtitle="Sudah sampai, belum ditandai lunas" bg="bg-rose-500" icon="💵" />
                         </div>
                     </div>
 
