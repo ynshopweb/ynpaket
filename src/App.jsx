@@ -174,9 +174,21 @@ function App() {
                 const berhasilDiterima = packages.filter(p => p.shipping.status === 'Berhasil Diterima').length;
                 const gagalRetur = packages.filter(p => ['Gagal Antar', 'Retur'].includes(p.shipping.status)).length;
                 
-                // Financials
+                // Financials — total keseluruhan (all-time), dipakai kalau suatu saat
+                // dibutuhkan total sepanjang masa (BUKAN yang ditampilkan di kartu
+                // "Bulan Ini" pada Dashboard, karena itu HARUS terfilter per bulan).
                 const totalModalKeseluruhan = packages.reduce((acc, p) => acc + (p.financials.totalModal || 0), 0);
-                const totalFeeJasaCo = packages.reduce((acc, p) => acc + (p.financials.feeJasaCo || 0), 0);
+                const totalFeeJasaCoKeseluruhan = packages.reduce((acc, p) => acc + (p.financials.feeJasaCo || 0), 0);
+
+                // BARU: "Statistik Keuangan Bulan Ini" di Dashboard sebelumnya menjumlahkan
+                // SEMUA paket sepanjang waktu (bug) padahal labelnya "Bulan Ini". Sekarang
+                // benar-benar difilter berdasarkan checkoutDate (format "YYYY-MM-DD") yang
+                // berada di bulan kalender berjalan saja.
+                const now = new Date();
+                const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`; // "YYYY-MM"
+                const packagesBulanIni = packages.filter(p => (p.checkoutDate || '').startsWith(currentMonthKey));
+                const totalModalBulanIni = packagesBulanIni.reduce((acc, p) => acc + (p.financials.totalModal || 0), 0);
+                const totalFeeJasaCoBulanIni = packagesBulanIni.reduce((acc, p) => acc + (p.financials.feeJasaCo || 0), 0);
                 
                 // COD Stats — field lama (codUnpaid/codPaid/codProblem) DIPERTAHANKAN
                 // apa adanya untuk kompatibilitas (masih dipakai badge & banner lama).
@@ -210,7 +222,12 @@ function App() {
 
                 return {
                     totalPackages, draft, dikemas, dikirim, dibawaKurir, berhasilDiterima, gagalRetur,
-                    totalModal: totalModalKeseluruhan, totalFeeJasaCo,
+                    // totalModal/totalFeeJasaCo = ANGKA BULAN INI (sesuai label kartu di Dashboard).
+                    totalModal: totalModalBulanIni, totalFeeJasaCo: totalFeeJasaCoBulanIni,
+                    currentMonthKey,
+                    packagesBulanIniCount: packagesBulanIni.length,
+                    // Total sepanjang masa tetap disediakan terpisah untuk kebutuhan lain.
+                    totalModalSemua: totalModalKeseluruhan, totalFeeJasaCoSemua: totalFeeJasaCoKeseluruhan,
                     codUnpaid, codPaid, codProblem,
                     codBelumSampaiTotal, codPerluDisetorTotal, codDibatalkanTotal,
                     codBelumSampaiCount: codBelumSampai.length,
