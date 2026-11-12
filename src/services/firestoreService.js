@@ -52,6 +52,7 @@ export const COLLECTIONS = {
   produk: 'produk',
   helperCheckout: 'helperCheckout',
   settings: 'settings',
+  coUser: 'coUser', // Data CO User (dikirim lewat halaman publik /co)
 };
 
 /**

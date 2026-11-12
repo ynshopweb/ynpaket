@@ -3,11 +3,59 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ------------------------------------------------------------------
+    // Form CO User (halaman publik /co, TANPA login)
+    // Pengunjung anonim HANYA boleh:
+    //   - membuat 1 dokumen baru (ID acak) berstatus "Menunggu"
+    //   - memperbarui dokumennya SELAMA masih "Menunggu" (Edit Data / Sudah Benar)
+    // Pengunjung TIDAK boleh: membaca, melihat daftar, menghapus, atau mengubah
+    // dokumen yang sudah "Dikonfirmasi" (terkunci). Admin (login) tetap punya
+    // akses penuh lewat aturan umum di bawah.
+    // ------------------------------------------------------------------
+    match /coUser/{coId} {
+
+      function fieldsValid(d) {
+        return d.nama is string && d.nama.size() >= 2 && d.nama.size() <= 60
+          && d.namaPenerima is string && d.namaPenerima.size() >= 2 && d.namaPenerima.size() <= 60
+          && d.whatsapp is string && d.whatsapp.matches('^[0-9]{9,15}$')
+          && d.alamat is string && d.alamat.size() >= 5 && d.alamat.size() <= 300
+          && d.cod is int && d.cod > 0 && d.cod <= 100000000;
+      }
+
+      allow create: if coId.matches('^[A-Za-z0-9-]{20,64}$')
+        && request.resource.data.keys().hasOnly(
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+              'status', 'adminStatus', 'submittedAt', 'confirmedAt'])
+        && request.resource.data.keys().hasAll(
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+              'status', 'adminStatus', 'submittedAt', 'confirmedAt'])
+        && fieldsValid(request.resource.data)
+        && request.resource.data.status == 'Menunggu'
+        && request.resource.data.adminStatus == 'Baru'
+        && request.resource.data.submittedAt == request.time
+        && request.resource.data.confirmedAt == null;
+
+      allow update: if resource.data.status == 'Menunggu'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+              'status', 'confirmedAt', 'updatedAt'])
+        && fieldsValid(request.resource.data)
+        && request.resource.data.updatedAt == request.time
+        && (
+             (request.resource.data.status == 'Menunggu'
+               && request.resource.data.confirmedAt == null)
+          || (request.resource.data.status == 'Dikonfirmasi'
+               && request.resource.data.confirmedAt == request.time)
+           );
+    }
+
     // Semua koleksi data aplikasi (paket, akunCo, produk, dll) hanya bisa
     // dibaca & ditulis oleh pengguna yang sudah login (auth != null).
     // Tidak ada pendaftaran akun sendiri — akun dibuat manual oleh admin
     // lewat Firebase Console / Authentication tab, jadi siapa pun yang
     // berhasil login dianggap pengguna sah aplikasi ini.
+    // (Jangan aktifkan "Anonymous" di Firebase Authentication, karena
+    // pengunjung anonim akan dianggap login dan lolos aturan ini.)
     match /{document=**} {
       allow read, write: if request.auth != null;
     }

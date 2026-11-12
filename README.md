@@ -149,3 +149,21 @@ Tambahkan Environment Variable di Vercel:
 API key tidak disimpan di frontend, localStorage, Firestore, atau Git.
 
 Untuk SPX Express, aplikasi mengirim courier code `spx`. Pastikan akun Biteship Anda memiliki akses tracking SPX.
+
+
+---
+
+## 📝 Form CO User (halaman publik `/co`)
+
+User tidak perlu login. Bagikan link `https://<domain-kamu>/co` (ada tombol **Salin Link Form** di menu **Data CO User**).
+
+**Alur:** Input → Pratinjau → Konfirmasi → Berhasil
+- **Submit Data** → dokumen dibuat di koleksi `coUser` dengan status `Menunggu` (ID acak unik, `submittedAt` tersimpan).
+- **Edit Data** → kembali ke form, isian tetap; submit ulang memperbarui dokumen yang sama (tidak ada data ganda).
+- **Sudah Benar** → status `Dikonfirmasi` + `confirmedAt`; dokumen **terkunci** (tidak bisa diubah user lagi).
+- Admin melihat semuanya di menu **Data CO User**, bisa menandai *Diverifikasi*, menyalin data, chat WhatsApp, atau menghapus.
+
+**Wajib setelah update:**
+1. Deploy ulang `firestore.rules` (Firebase Console → Firestore → Rules → Publish). Tanpa ini form publik ditolak Firestore.
+2. Pastikan **Anonymous sign-in TIDAK diaktifkan** di Firebase Authentication.
+3. (Opsional) Isi `KONTAK_KA_MERY_WA` di `src/pages/FormCoPage.jsx` agar muncul tombol "Hubungi Ka Mery".

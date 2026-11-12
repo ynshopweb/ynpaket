@@ -17,13 +17,16 @@ import ConfirmSyncStockModal from './components/modals/ConfirmSyncStockModal';
 import ConfirmDeletePackageModal from './components/modals/ConfirmDeletePackageModal';
 import LoginView from './views/LoginView';
 import MasterDataView from './views/MasterDataView';
+import CoUserView from './views/CoUserView';
 import { trackingService } from './services/trackingService';
 import { useAuth } from './contexts/AuthContext';
+import { serverTimestamp } from 'firebase/firestore';
 import {
     COLLECTIONS,
     subscribeCollection,
     addItem,
     updateItem,
+    removeItem,
     createPembelianLengkap,
     tandaiCodDibayar,
     tambahRiwayatTracking,
@@ -37,6 +40,7 @@ function App() {
             const [packages, setPackages] = useState([]);
             const [shopeeAccounts, setShopeeAccounts] = useState([]);
             const [products, setProducts] = useState([]);
+            const [coUsers, setCoUsers] = useState([]); // Data CO User (dikirim lewat form publik /co)
             const [dataLoading, setDataLoading] = useState(true);
             const [masterData, setMasterData] = useState({ jasaCo: [], alamat: [], kurir: [], kantorKurir: [] });
             const [trackingApiConfig, setTrackingApiConfig] = useState(() => ({
@@ -98,12 +102,14 @@ function App() {
                 const unsubKantorKurir = subscribeCollection(COLLECTIONS.kantorKurir, (items) =>
                     setMasterData((m) => ({ ...m, kantorKurir: items }))
                 );
+                const unsubCoUser = subscribeCollection(COLLECTIONS.coUser, (items) => setCoUsers(items));
 
                 return () => {
                     unsubJasaCo();
                     unsubAlamat();
                     unsubKurir();
                     unsubKantorKurir();
+                    unsubCoUser();
                 };
             }, [user]);
 
@@ -302,6 +308,33 @@ function App() {
                 } catch (err) {
                     console.error(err);
                     showToast('Gagal menyinkronkan stok.', 'error');
+                }
+            };
+
+            // --- Data CO User ---
+            const coPerluVerifikasi = coUsers.filter(c => c.status === 'Dikonfirmasi' && c.adminStatus !== 'Diverifikasi').length;
+
+            const handleVerifyCoUser = async (item) => {
+                try {
+                    await updateItem(COLLECTIONS.coUser, item.id, {
+                        adminStatus: 'Diverifikasi',
+                        verifiedAt: serverTimestamp(),
+                        verifiedBy: user?.email || 'Admin'
+                    });
+                    showToast('Data CO ditandai sudah diverifikasi.');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal memperbarui data CO.', 'error');
+                }
+            };
+
+            const handleDeleteCoUser = async (item) => {
+                try {
+                    await removeItem(COLLECTIONS.coUser, item.id);
+                    showToast('Data CO dihapus.');
+                } catch (err) {
+                    console.error(err);
+                    showToast('Gagal menghapus data CO.', 'error');
                 }
             };
 
@@ -563,6 +596,7 @@ function App() {
                                 <NavItem icon="📦" label="Semua Paket" badge={packages.length} active={activeTab === 'packages'} onClick={() => setActiveTab('packages')} />
                                 <NavItem icon="💵" label="COD Shopee" badge={stats.codPerluDisetorCount} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'cod'} onClick={() => setActiveTab('cod')} />
                                 <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+                                <NavItem icon="📝" label="Data CO User" badge={coPerluVerifikasi} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'coUser'} onClick={() => setActiveTab('coUser')} />
                                 <div className="pt-4 pb-1">
                                     <p className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Master Data</p>
                                 </div>
@@ -740,6 +774,15 @@ function App() {
                                 />
                             )}
 
+                            {activeTab === 'coUser' && (
+                                <CoUserView
+                                    items={coUsers}
+                                    onVerify={handleVerifyCoUser}
+                                    onDelete={handleDeleteCoUser}
+                                    copyToClipboard={copyToClipboard}
+                                />
+                            )}
+
                             {activeTab === 'accounts' && (
                                 <ShopeeAccountsView 
                                     accounts={shopeeAccounts}
@@ -819,6 +862,7 @@ function App() {
                                     <NavItem icon="🚚" label="Tracking" active={activeTab === 'packages'} onClick={() => goToTab('packages')} />
                                     <NavItem icon="💵" label="COD" badge={stats.codPerluDisetorCount} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'cod'} onClick={() => goToTab('cod')} />
                                     <NavItem icon="🏬" label="Stok / Produk" active={activeTab === 'inventory'} onClick={() => goToTab('inventory')} />
+                                    <NavItem icon="📝" label="Data CO User" badge={coPerluVerifikasi} badgeColor="bg-rose-100 text-rose-700" active={activeTab === 'coUser'} onClick={() => goToTab('coUser')} />
                                     <NavItem icon="🛍️" label="Akun Shopee" active={activeTab === 'accounts'} onClick={() => goToTab('accounts')} />
 
                                     {/* Master Data (expandable submenu) */}
