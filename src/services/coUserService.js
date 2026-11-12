@@ -58,6 +58,11 @@ export function waLink(value) {
   return d ? `https://wa.me/62${d.slice(1)}` : '';
 }
 
+// Resi: huruf besar + angka saja, tanpa spasi/simbol (contoh: SPXID012345678901)
+export function normalizeResi(value) {
+  return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
 export function validateCoForm(f) {
   const e = {};
   const nama = (f.nama || '').trim();
@@ -65,11 +70,13 @@ export function validateCoForm(f) {
   const alamat = (f.alamat || '').trim();
   const wa = normalizeWa(f.whatsapp);
   const cod = parseInt(digitsOnly(f.cod), 10);
+  const resi = normalizeResi(f.resi);
 
   if (nama.length < 2) e.nama = 'Nama minimal 2 karakter.';
   if (penerima.length < 2) e.namaPenerima = 'Isi nama sesuai yang tertera di paket.';
   if (!/^08\d{8,12}$/.test(wa)) e.whatsapp = 'Nomor WhatsApp tidak valid (contoh: 081234567890).';
   if (alamat.length < 5) e.alamat = 'Alamat terlalu singkat, tulis sesuai yang tertera di paket.';
+  if (!/^[A-Z0-9]{6,30}$/.test(resi)) e.resi = 'Nomor resi tidak valid (6–30 huruf/angka, tanpa spasi).';
   if (!cod || cod < 1) e.cod = 'Masukkan nominal COD.';
   else if (cod > 100000000) e.cod = 'Nominal COD terlalu besar, periksa kembali.';
   return e;
@@ -82,6 +89,7 @@ export function cleanCoForm(f) {
     namaPenerima: (f.namaPenerima || '').trim().slice(0, 60),
     whatsapp: normalizeWa(f.whatsapp),
     alamat: (f.alamat || '').trim().slice(0, 300),
+    resi: normalizeResi(f.resi).slice(0, 30),
     cod: parseInt(digitsOnly(f.cod), 10) || 0,
   };
 }

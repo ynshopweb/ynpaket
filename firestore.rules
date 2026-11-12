@@ -19,15 +19,16 @@ service cloud.firestore {
           && d.namaPenerima is string && d.namaPenerima.size() >= 2 && d.namaPenerima.size() <= 60
           && d.whatsapp is string && d.whatsapp.matches('^[0-9]{9,15}$')
           && d.alamat is string && d.alamat.size() >= 5 && d.alamat.size() <= 300
+          && d.resi is string && d.resi.matches('^[A-Z0-9]{6,30}$')
           && d.cod is int && d.cod > 0 && d.cod <= 100000000;
       }
 
       allow create: if coId.matches('^[A-Za-z0-9-]{20,64}$')
         && request.resource.data.keys().hasOnly(
-             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'resi', 'cod',
               'status', 'adminStatus', 'submittedAt', 'confirmedAt'])
         && request.resource.data.keys().hasAll(
-             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'resi', 'cod',
               'status', 'adminStatus', 'submittedAt', 'confirmedAt'])
         && fieldsValid(request.resource.data)
         && request.resource.data.status == 'Menunggu'
@@ -37,7 +38,7 @@ service cloud.firestore {
 
       allow update: if resource.data.status == 'Menunggu'
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(
-             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'cod',
+             ['nama', 'namaPenerima', 'whatsapp', 'alamat', 'resi', 'cod',
               'status', 'confirmedAt', 'updatedAt'])
         && fieldsValid(request.resource.data)
         && request.resource.data.updatedAt == request.time

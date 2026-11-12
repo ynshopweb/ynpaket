@@ -48,7 +48,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
       .filter((i) => filter === 'Semua' || i.status === filter)
       .filter((i) =>
         !term ||
-        [i.nama, i.namaPenerima, i.whatsapp, i.alamat].some((v) => (v || '').toLowerCase().includes(term))
+        [i.nama, i.namaPenerima, i.whatsapp, i.alamat, i.resi].some((v) => (v || '').toLowerCase().includes(term))
       )
       .sort((a, b) => millis(b.submittedAt) - millis(a.submittedAt));
   }, [items, filter, q]);
@@ -59,7 +59,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
 
   const salinDetail = (i) =>
     copyToClipboard(
-      `Nama: ${i.nama}\nNama di paket: ${i.namaPenerima}\nWhatsApp: ${i.whatsapp}\nAlamat: ${i.alamat}\nCOD: ${formatRupiah(i.cod)}`,
+      `Nama: ${i.nama}\nNama di paket: ${i.namaPenerima}\nWhatsApp: ${i.whatsapp}\nAlamat: ${i.alamat}\nResi: ${i.resi || '-'}\nCOD: ${formatRupiah(i.cod)}`,
       'Data CO'
     );
 
@@ -108,7 +108,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
-          placeholder="Cari nama, penerima, WhatsApp, alamat..."
+          placeholder="Cari nama, penerima, resi, WhatsApp, alamat..."
           className="flex-1 px-3.5 py-2 text-sm bg-white border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-400"
         />
       </div>
@@ -124,7 +124,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
             <table className="w-full text-sm">
               <thead className="bg-slate-50 text-slate-500 text-xs">
                 <tr>
-                  {['Nama', 'Penerima', 'WhatsApp', 'Alamat', 'COD', 'Status', 'Waktu'].map((h) => (
+                  {['Nama', 'Penerima', 'WhatsApp', 'Alamat', 'Resi', 'COD', 'Status', 'Waktu'].map((h) => (
                     <th key={h} className="text-left font-semibold px-4 py-3">{h}</th>
                   ))}
                 </tr>
@@ -136,6 +136,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
                     <td className="px-4 py-3 text-slate-700">{i.namaPenerima}</td>
                     <td className="px-4 py-3 text-slate-700">{i.whatsapp}</td>
                     <td className="px-4 py-3 text-slate-600 max-w-[220px] truncate" title={i.alamat}>{i.alamat}</td>
+                    <td className="px-4 py-3 font-mono text-xs text-slate-700">{i.resi || '-'}</td>
                     <td className="px-4 py-3 font-semibold text-slate-800">{formatRupiah(i.cod)}</td>
                     <td className="px-4 py-3 space-y-1">
                       <StatusPill status={i.status} />
@@ -158,6 +159,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
                 </div>
                 <p className="text-xs text-slate-500">oleh {i.nama} · {i.whatsapp}</p>
                 <p className="text-xs text-slate-500 line-clamp-2">{i.alamat}</p>
+                {i.resi && <p className="text-xs font-mono text-slate-600">Resi: {i.resi}</p>}
                 <div className="flex items-center justify-between pt-1">
                   <p className="font-bold text-slate-800">{formatRupiah(i.cod)}</p>
                   <div className="flex items-center gap-2">
@@ -192,6 +194,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
                 ['Nama di paket', current.namaPenerima],
                 ['WhatsApp', current.whatsapp],
                 ['Alamat', current.alamat],
+                ['Nomor Resi', current.resi || '-'],
                 ['Jumlah COD', formatRupiah(current.cod)],
                 ['Waktu submit', fmtTime(current.submittedAt)],
                 ['Waktu konfirmasi', fmtTime(current.confirmedAt)],

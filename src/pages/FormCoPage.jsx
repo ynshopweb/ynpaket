@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
   newCoId,
   normalizeWa,
+  normalizeResi,
   digitsOnly,
   formatRupiah,
   validateCoForm,
@@ -14,7 +15,7 @@ import {
 const KONTAK_KA_MERY_WA = '083865829223';
 
 const DRAFT_KEY = 'yn-co-draft';
-const EMPTY = { nama: '', namaPenerima: '', whatsapp: '', alamat: '', cod: '' };
+const EMPTY = { nama: '', namaPenerima: '', whatsapp: '', alamat: '', resi: '', cod: '' };
 
 function loadDraft() {
   try {
@@ -74,7 +75,7 @@ export default function FormCoPage() {
   const restored = useRef(loadDraft()).current;
 
   const [step, setStep] = useState(restored?.step === 'preview' ? 'preview' : 'input'); // input | preview | done
-  const [form, setForm] = useState(restored?.form || EMPTY);
+  const [form, setForm] = useState({ ...EMPTY, ...(restored?.form || {}) });
   const [errors, setErrors] = useState({});
   const [docId, setDocId] = useState(restored?.id || newCoId());
   const [docExists, setDocExists] = useState(!!restored?.exists);
@@ -173,6 +174,7 @@ export default function FormCoPage() {
     ['Nama di paket', form.namaPenerima.trim()],
     ['No. WhatsApp', normalizeWa(form.whatsapp)],
     ['Alamat', form.alamat.trim()],
+    ['Nomor Resi', normalizeResi(form.resi)],
     ['Jumlah COD', formatRupiah(parseInt(digitsOnly(form.cod), 10) || 0)],
   ];
 
@@ -245,6 +247,19 @@ export default function FormCoPage() {
                   placeholder="Alamat tertera di paket"
                   onChange={(e) => setField('alamat', e.target.value)}
                   className={inputCls(errors.alamat) + ' resize-none'}
+                />
+              </Field>
+
+              <Field label="Nomor Resi" hint="Lihat nomor resi di label paket atau aplikasi Shopee." error={errors.resi}>
+                <input
+                  type="text"
+                  value={form.resi}
+                  maxLength={30}
+                  autoCapitalize="characters"
+                  autoComplete="off"
+                  placeholder="Contoh: SPXID012345678901"
+                  onChange={(e) => setField('resi', normalizeResi(e.target.value))}
+                  className={inputCls(errors.resi) + ' uppercase'}
                 />
               </Field>
 
