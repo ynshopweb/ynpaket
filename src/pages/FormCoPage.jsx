@@ -244,7 +244,7 @@ export default function FormCoPage() {
                   rows={3}
                   value={form.alamat}
                   maxLength={300}
-                  placeholder="Alamat tertera di paket"
+                  placeholder="Alamat tertera di paket singkat saja minsalnya paok tawah, Batujai, Puyung"
                   onChange={(e) => setField('alamat', e.target.value)}
                   className={inputCls(errors.alamat) + ' resize-none'}
                 />
