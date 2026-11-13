@@ -161,7 +161,7 @@ User tidak perlu login. Bagikan link `https://<domain-kamu>/co` (ada tombol **Sa
 - **Submit Data** → dokumen dibuat di koleksi `coUser` dengan status `Menunggu` (ID acak unik, `submittedAt` tersimpan).
 - **Edit Data** → kembali ke form, isian tetap; submit ulang memperbarui dokumen yang sama (tidak ada data ganda).
 - **Sudah Benar** → status `Dikonfirmasi` + `confirmedAt`; dokumen **terkunci** (tidak bisa diubah user lagi).
-- Admin melihat semuanya di menu **Data CO User**, bisa menandai *Diverifikasi*, menyalin data, chat WhatsApp, atau menghapus.
+- Admin melihat semuanya di menu **Data CO User**. Tombol **Verifikasi & Masukkan ke Paket** otomatis membuat paket resmi (ID `YN-CO-XXXXXXXX`, COD, status Dikirim) lewat `createPembelianLengkap`, jadi muncul di menu Paket, Tracking, dan COD. Verifikasi berulang tidak membuat paket ganda.
 
 **Wajib setelah update:**
 1. Deploy ulang `firestore.rules` (Firebase Console → Firestore → Rules → Publish). Tanpa ini form publik ditolak Firestore.

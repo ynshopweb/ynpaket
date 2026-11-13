@@ -21,6 +21,7 @@ import CoUserView from './views/CoUserView';
 import { trackingService } from './services/trackingService';
 import { useAuth } from './contexts/AuthContext';
 import { serverTimestamp } from 'firebase/firestore';
+import { buildPaketFromCo } from './services/coUserService';
 import {
     COLLECTIONS,
     subscribeCollection,
@@ -314,14 +315,28 @@ function App() {
             // --- Data CO User ---
             const coPerluVerifikasi = coUsers.filter(c => c.status === 'Dikonfirmasi' && c.adminStatus !== 'Diverifikasi').length;
 
+            // Verifikasi = data CO user otomatis masuk ke daftar Paket resmi.
             const handleVerifyCoUser = async (item) => {
+                if (item.status !== 'Dikonfirmasi' || item.adminStatus === 'Diverifikasi') return;
                 try {
+                    const pkg = buildPaketFromCo(item);
+                    // ID paket deterministik: kalau paket sudah terbuat (verifikasi sebelumnya
+                    // gagal di tengah jalan), jangan dibuat lagi supaya tidak ganda.
+                    if (!packages.some((p) => p.id === pkg.id)) {
+                        await createPembelianLengkap(pkg);
+                    }
                     await updateItem(COLLECTIONS.coUser, item.id, {
                         adminStatus: 'Diverifikasi',
                         verifiedAt: serverTimestamp(),
-                        verifiedBy: user?.email || 'Admin'
+                        verifiedBy: user?.email || 'Admin',
+                        paketId: pkg.id
                     });
-                    showToast('Data CO ditandai sudah diverifikasi.');
+                    const dupe = packages.some((p) => p.id !== pkg.id && p.shipping?.resi && p.shipping.resi === item.resi);
+                    showToast(
+                        dupe
+                            ? `Paket ${pkg.id} dibuat. Perhatian: resi ${item.resi} sudah ada di paket lain, cek kembali.`
+                            : `Terverifikasi! Paket ${pkg.id} masuk ke daftar Paket.`
+                    );
                 } catch (err) {
                     console.error(err);
                     showToast('Gagal memperbarui data CO.', 'error');

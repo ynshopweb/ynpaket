@@ -68,7 +68,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold text-slate-900">Data CO User</h2>
-          <p className="text-sm text-slate-500">Data yang dikirim user lewat form publik. Periksa dulu sebelum dijadikan paket resmi.</p>
+          <p className="text-sm text-slate-500">Data dari form publik. Setelah kamu verifikasi, data otomatis masuk ke daftar Paket.</p>
         </div>
         <button
           onClick={() => copyToClipboard(formUrl, 'Link form CO')}
@@ -198,6 +198,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
                 ['Jumlah COD', formatRupiah(current.cod)],
                 ['Waktu submit', fmtTime(current.submittedAt)],
                 ['Waktu konfirmasi', fmtTime(current.confirmedAt)],
+                ...(current.paketId ? [['Masuk sebagai paket', current.paketId]] : []),
                 ...(current.adminStatus === 'Diverifikasi'
                   ? [['Diverifikasi', `${fmtTime(current.verifiedAt)}${current.verifiedBy ? ' oleh ' + current.verifiedBy : ''}`]]
                   : []),
@@ -214,6 +215,11 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
                 User sudah submit tapi belum menekan “Sudah Benar”. Data bisa saja masih berubah.
               </p>
             )}
+            {current.status === 'Dikonfirmasi' && current.adminStatus !== 'Diverifikasi' && (
+              <p className="text-xs text-slate-500 mt-3">
+                Setelah diverifikasi, data ini otomatis dibuat menjadi paket resmi (COD, status Dikirim) di menu Paket.
+              </p>
+            )}
 
             <div className="grid grid-cols-2 gap-2 mt-4">
               <button onClick={() => salinDetail(current)} className="py-2.5 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50">
@@ -224,7 +230,7 @@ function CoUserView({ items, onVerify, onDelete, copyToClipboard }) {
               </a>
               {current.status === 'Dikonfirmasi' && current.adminStatus !== 'Diverifikasi' && (
                 <button onClick={() => onVerify(current)} className="col-span-2 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white text-sm font-semibold">
-                  ✔ Tandai Sudah Diverifikasi
+                  ✔ Verifikasi & Masukkan ke Paket
                 </button>
               )}
             </div>

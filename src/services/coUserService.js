@@ -128,3 +128,81 @@ export async function confirmCoUser(id) {
     updatedAt: serverTimestamp(),
   });
 }
+
+// ---------------------------------------------------------------------
+// Verifikasi admin -> otomatis jadi Paket resmi
+// ---------------------------------------------------------------------
+
+// ID paket deterministik dari ID dokumen CO, supaya verifikasi yang terulang
+// (klik ganda / koneksi putus) tidak membuat paket ganda.
+export function paketIdFromCo(coId) {
+  return `YN-CO-${String(coId).replace(/-/g, '').slice(0, 8).toUpperCase()}`;
+}
+
+// Tebak kurir dari awalan resi; bila tak dikenali pakai SPX (default aplikasi).
+// Admin bisa mengubahnya lewat Edit Paket.
+export function guessCourier(resi) {
+  const r = String(resi || '').toUpperCase();
+  if (r.startsWith('SPX')) return 'SPX Express';
+  if (/^(JP|JO|JD|JX|JB|JT)/.test(r)) return 'J&T Express';
+  if (r.startsWith('JNE')) return 'JNE';
+  return 'SPX Express';
+}
+
+/** Bentuk objek paket (format sama dengan "Tambah Pembelian") dari data CO user. */
+export function buildPaketFromCo(co) {
+  const now = new Date();
+  const confirmed = co.confirmedAt?.toDate ? co.confirmedAt.toDate() : now;
+  const cod = Number(co.cod) || 0;
+  const stamp = now.toISOString().substring(0, 16);
+  return {
+    id: paketIdFromCo(co.id),
+    source: 'co-user',
+    coUserId: co.id,
+    coUserNama: co.nama,
+    shopeeOrderId: 'PENDING-ID',
+    checkoutDate: confirmed.toISOString().substring(0, 10),
+    shopeeAccountId: null,
+    jasaCoId: null,
+    recipient: {
+      name: co.namaPenerima,
+      phone: co.whatsapp,
+      address: co.alamat,
+      district: '',
+      city: '',
+      province: '',
+      postalCode: '',
+    },
+    items: [
+      {
+        productId: '',
+        name: 'Paket CO User',
+        sku: '-',
+        variant: `CO oleh ${co.nama}`,
+        qty: 1,
+        unitPrice: cod,
+        subtotal: cod,
+      },
+    ],
+    financials: {
+      itemsTotal: cod,
+      voucherShopee: '',
+      totalHargaPesanan: cod,
+      metodePembayaran: 'COD',
+      jasaCoNama: '',
+      feeJasaCo: 0,
+      totalModal: cod,
+      codStatus: 'Belum dibayar',
+    },
+    shipping: {
+      courier: guessCourier(co.resi),
+      resi: co.resi,
+      status: 'Dikirim',
+      lastLocation: 'Data CO dari user',
+      lastUpdate: stamp,
+    },
+    trackingHistory: [{ time: stamp, location: 'Form CO User', status: `Data CO dikonfirmasi oleh ${co.nama}` }],
+    // Paket CO bukan pembelian stok, jadi jangan memunculkan permintaan sinkron stok.
+    stockSynced: true,
+  };
+}
